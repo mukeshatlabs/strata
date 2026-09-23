@@ -144,7 +144,13 @@ class Impact:
 
 @dataclass(frozen=True)
 class ReviewTask:
-    """One item in the review center, in the owner queue or the expert queue."""
+    """One item in the review center, in the owner queue or the expert queue.
+
+    One task per reached node, so a node reached from two obligations by the same
+    change is one piece of work. Every route that reached it is kept in `paths`,
+    with the obligations those routes started from in `obligation_ids`, so the
+    review page can show both.
+    """
 
     task_id: str
     project_id: str
@@ -156,6 +162,8 @@ class ReviewTask:
     recommended_action: str
     status: str = "open"
     reason: str | None = None
+    paths: list[list[str]] = field(default_factory=list)
+    obligation_ids: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

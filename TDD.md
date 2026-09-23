@@ -277,8 +277,9 @@ at 30 nodes. A dictionary of adjacency lists is enough and is fully readable.
 An `Impact` is a node reached by traversal from a modified obligation. It records the
 path that reached it, for example `["OBL-3", "PRJ-1", "DOC-4"]`, and the edge types
 along that path. A `ReviewTask` wraps an impact or a claim with `assignee`,
-`recommended_action`, `status` (open, approved, edited, escalated), and `queue` (owner
-or expert).
+`recommended_action`, `status` (open, approved, edited, escalated), `queue` (owner or
+expert), and, for an owner task, `paths` and `obligation_ids` holding every route that
+reached the node.
 
 An `Event` is one row in an append-only table.
 
@@ -430,14 +431,22 @@ The escalation rules are applied in `routing.py` in this order:
 
 1. If the claim's verification status is `rejected`, the item goes to the expert queue
    with the rejection reason attached.
-2. If the claim's `obligation_change` is `created`, the item goes to the expert queue
+2. If any link's `rationale_status` is `rejected`, the item goes to the expert queue
+   with reason `rationale_unverified`. The mapping call returns a quote from the
+   obligation's own text supporting the link, checked by the same search the citation
+   verifier uses; a rationale citing language the obligation does not contain is a
+   reason to look at the link, even when the link itself may be right. A `near`
+   rationale is tolerated, as a near citation is (PRD 9).
+3. If the claim's `obligation_change` is `created`, the item goes to the expert queue
    with reason `new_obligation`. No existing node can be the right link for a new
-   duty, so the mapping call is skipped for these claims.
-3. If any link has `confidence` below 0.7, the item goes to the expert queue.
-4. If the claim has `obligation_change` of `modified` or `removed` and no link at or
+   duty, so the mapping call is skipped for these claims, and rule 2 cannot fire for
+   them because they have no links.
+4. If any link has `confidence` below 0.7, the item goes to the expert queue with
+   reason `low_confidence`.
+5. If the claim has `obligation_change` of `modified` or `removed` and no link at or
    above the threshold, the item goes to the expert queue with reason
    `no_confident_link`.
-5. Otherwise the item goes to the owner queue.
+6. Otherwise the item goes to the owner queue.
 
 The threshold is a single constant in `routing.py`. The eval report shows how many
 items land in each queue at 0.5, 0.7, and 0.9, so the trade-off is visible.
@@ -459,13 +468,27 @@ of adjacency lists.
 
 ### 3.8 Reviewer routing
 
-`routing.create_tasks(claim, verification, links, impacts) -> list[ReviewTask]`
-creates one task per impact, assigned to the impacted node's owner. The recommended
+`routing.create_tasks(claim, verification, links, impacts, graph) -> list[ReviewTask]`
+creates one task per reached *node*, assigned to that node's owner. The recommended
 action comes from a small table keyed on `(obligation_change, node_type)`. For example,
 `("modified", "document")` maps to "Update the document to reflect the changed
 requirement", and `("removed", "project")` maps to "Review whether the project is
-still required". Tasks for escalated items go to the expert queue instead. Every task
-creation is written as an event.
+still required". The table also covers the obligation node itself, because propagation
+returns what a change reaches and not the obligation it started from: without
+`("modified", "obligation")` a changed duty would create work for every downstream
+document and none for the person who owns the duty.
+
+One task per node, not one per impact. A single change can reach the same node from
+two obligations, as CH-7 reaches PRJ-1 from both OBL-3 and OBL-4, and that is one piece
+of work for one owner. The task keeps every path that reached it in `paths`, and the
+obligations those paths started from in `obligation_ids`, so the review page can show
+both routes.
+
+Tasks for escalated items go to the expert queue instead, as a single task with no
+node: nothing reaches an owner until a human has agreed the claim is sound. The
+prototype's company graph has no counsel or director node, so an expert task carries no
+assignee and the queue itself is the addressee. Every task creation is written as an
+event.
 
 ### 3.9 Audit history and rollback
 

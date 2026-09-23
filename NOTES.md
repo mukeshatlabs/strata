@@ -277,3 +277,42 @@ the sample text now continues past the quote.
 to OBL-4, so the union satisfies PRD R3.4. The generator asserts each rationale quote
 appears verbatim in its obligation's text before writing. Both are marked hand-written
 and are replaced in task 13.
+
+## Task 10: routing
+
+**New rule: `rationale_unverified`.** Added at position 2, immediately after the
+citation rule and before confidence. Task 9 keeps a link whose rationale quote failed
+to verify, because the link may be right while the quote supporting it was invented;
+this is where that combination becomes visible instead of silently reaching an owner. A
+`near` rationale is tolerated, matching PRD 9's treatment of near citations. Its
+position relative to the `created` rule is immaterial in practice, because a created
+claim never reaches the mapping call and so has no links, but it is placed where the
+instruction put it.
+
+**The action table needed obligation rows.** `propagate` returns what a change reaches
+and deliberately excludes the obligation it started from, so with only project and
+document entries a modified duty produced tasks for every downstream document and none
+for the person who owns the duty. CH-7 would have created work for DOC-1, DOC-2 and
+DOC-4 and nothing for P-2 on OBL-3 and OBL-4. `create_tasks` now seeds the task set
+with the linked obligations themselves, each with `paths == [[obligation_id]]`.
+
+**Dedupe keeps the routes.** One task per node keyed on `node_id`, but every path that
+reached it is kept. CH-7's PRJ-1 task carries `[["OBL-3","PRJ-1"], ["OBL-4","PRJ-1"]]`
+and `obligation_ids == ["OBL-3","OBL-4"]`; DOC-2 carries only the OBL-3 route because
+only OBL-3 reaches it. `ReviewTask` gained `paths` and `obligation_ids`, and TDD 2.5 is
+updated. Without this the review page could say a document is affected but not say by
+which of the two changed duties, which is the question a reviewer asks first.
+
+**An escalated claim creates no owner tasks at all, even though impacts exist.**
+`create_tasks` returns a single expert task with `node_id` None. PRD R4.3 says an
+escalated item is not applied until a human approves, and creating owner tasks
+alongside the expert task would put unreviewed work in six people's queues.
+
+**Gap found: there is no expert in the company graph.** PRD 2 describes experts as
+senior reviewers, "typically regulatory counsel or the director", and says owners and
+experts are assignees in the prototype. `meridian.json` has P-1 to P-7: Dana plus six
+owners, no counsel and no director. Expert tasks therefore carry `assignee = None` and
+the queue itself is the addressee. Inventing a P-8 would mean editing the data, and
+assigning to Dana would conflate the analyst with the reviewer the PRD distinguishes
+her from. Recorded in TDD 3.8. If a person node is added later, the only change is the
+assignee.
