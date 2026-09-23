@@ -39,6 +39,14 @@ Every model response is committed under `data/llm_cache/`, so `make test` and
 `make eval` run with no API key and no network access. `make live` is the only command
 that calls the API.
 
+Cache entries are keyed by prompt version, so the directory holds every version
+recorded during the build rather than only the current one: the live set is
+`extract/v3` plus `mapping/v1`, and the superseded `extract/v1` and `extract/v2`
+entries are kept so the responses behind each row of the prompt iteration table in
+`NOTES.md` stay readable here. Each of those rows is reproducible by checking out that
+row's commit and running `make eval`, which picks up both the prompt version and the
+cache as they stood at that commit.
+
 ## What to look at
 
 - `http://localhost:8000` — the review center, grouped by change. Each claim shows its
