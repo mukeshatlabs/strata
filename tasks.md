@@ -38,7 +38,7 @@ PRD: R1.1, R1.2, R1.3.
   offsets. Loads nodes and edges. Idempotent. Raises on a paragraph without a marker or
   an edge to a missing node.
 - Test first: `tests/test_ingest.py`: v1 yields 26 paragraphs with sequential IDs and
-  correct sections; header fields parsed; meridian.json yields 31 nodes and 21 edges;
+  correct sections; header fields parsed; meridian.json yields 32 nodes and 21 edges;
   re-ingest is a no-op; a dangling edge raises.
 - Commit: `ingest: parse versions and company graph`.
 

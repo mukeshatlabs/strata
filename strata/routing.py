@@ -9,6 +9,7 @@ the reason a reviewer sees is the first thing that was wrong, not the last.
 from .models import ReviewTask
 
 THRESHOLD = 0.7
+EXPERT = "P-8"  # regulatory counsel, the expert queue assignee
 
 ACTIONS = {
     ("modified", "obligation"): "Update the obligation text to match the changed requirement",
@@ -64,8 +65,9 @@ def action_for(obligation_change: str, node_type: str) -> str:
 def create_tasks(claim, verification, links, impacts, graph) -> list[ReviewTask]:
     """Create review tasks for one claim (TDD 3.8).
 
-    An escalated claim produces a single expert task with no node: nothing
-    reaches an owner until a human has agreed the claim is sound. Otherwise one
+    An escalated claim produces a single expert task with no node, assigned to
+    regulatory counsel: nothing reaches an owner until a human has agreed the
+    claim is sound. Otherwise one
     task per node, the obligations the claim links to plus everything
     propagation reached from them. A node reached by several routes is one task
     carrying all of them.
@@ -80,7 +82,7 @@ def create_tasks(claim, verification, links, impacts, graph) -> list[ReviewTask]
                 change_id=claim.change_id,
                 node_id=None,
                 queue="expert",
-                assignee=None,
+                assignee=EXPERT,
                 recommended_action=ACTIONS.get(
                     (claim.obligation_change, "obligation"), ESCALATED_ACTION
                 ),

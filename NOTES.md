@@ -308,11 +308,16 @@ which of the two changed duties, which is the question a reviewer asks first.
 escalated item is not applied until a human approves, and creating owner tasks
 alongside the expert task would put unreviewed work in six people's queues.
 
-**Gap found: there is no expert in the company graph.** PRD 2 describes experts as
-senior reviewers, "typically regulatory counsel or the director", and says owners and
-experts are assignees in the prototype. `meridian.json` has P-1 to P-7: Dana plus six
-owners, no counsel and no director. Expert tasks therefore carry `assignee = None` and
-the queue itself is the addressee. Inventing a P-8 would mean editing the data, and
-assigning to Dana would conflate the analyst with the reviewer the PRD distinguishes
-her from. Recorded in TDD 3.8. If a person node is added later, the only change is the
-assignee.
+**Gap found, then closed: there was no expert in the company graph.** PRD 2 describes
+experts as senior reviewers, "typically regulatory counsel or the director", and says
+owners and experts are assignees in the prototype. `meridian.json` had P-1 to P-7:
+Dana plus six owners, no counsel and no director, so expert tasks initially carried
+`assignee = None` with the queue itself as the addressee. Assigning them to Dana would
+have conflated the analyst with the reviewer the PRD distinguishes her from.
+
+Closed by adding **P-8, Marcus Reyes, regulatory counsel**, with approval. This is the
+second permitted edit to `data/`, after the VF-8 fix in task 7. P-8 owns no obligation,
+project or document and has no edges: the node exists only to be the expert queue's
+assignee, which is what PRD 2 describes. `routing.EXPERT = "P-8"` is the single place
+the ID appears. Node count moves from 31 to 32 and the person count from 7 to 8;
+`tests/test_ingest.py`, `tasks.md` and TDD 3.8 updated to match.

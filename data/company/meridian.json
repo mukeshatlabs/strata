@@ -45,6 +45,12 @@
       "name": "Elena Marsh",
       "text": "Customer communications manager. Owns customer-facing guidance and FAQs."
     },
+    {
+      "id": "P-8",
+      "type": "person",
+      "name": "Marcus Reyes",
+      "text": "Regulatory counsel. Senior reviewer for the expert queue: resolves claims with a rejected citation, a new obligation with no existing node, and low-confidence mappings."
+    },
 
     {
       "id": "OBL-1",

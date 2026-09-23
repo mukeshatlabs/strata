@@ -222,7 +222,7 @@ def test_escalated_claim_makes_one_task_with_no_node(g):
     assert task.queue == "expert"
     assert task.reason == "new_obligation"
     assert task.node_id is None
-    assert task.assignee is None, "the company graph has no expert person node"
+    assert task.assignee == routing.EXPERT == "P-8", "regulatory counsel"
     assert task.recommended_action == routing.ACTIONS[("created", "obligation")]
 
 

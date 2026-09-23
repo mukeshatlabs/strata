@@ -110,9 +110,9 @@ def test_version_row_written(conn):
 
 def test_company_graph_loads(conn):
     nodes, edges = ingest.ingest_company(conn, COMPANY)
-    assert len(nodes) == 31
+    assert len(nodes) == 32
     assert len(edges) == 21
-    assert conn.execute("select count(*) from nodes").fetchone()[0] == 31
+    assert conn.execute("select count(*) from nodes").fetchone()[0] == 32
     assert conn.execute("select count(*) from edges").fetchone()[0] == 21
 
 
@@ -122,7 +122,7 @@ def test_node_types_and_attrs(conn):
         r["type"]: r["n"]
         for r in conn.execute("select type, count(*) as n from nodes group by type")
     }
-    assert counts == {"obligation": 11, "project": 5, "document": 8, "person": 7}
+    assert counts == {"obligation": 11, "project": 5, "document": 8, "person": 8}
 
     obl = conn.execute("select * from nodes where node_id='OBL-3'").fetchone()
     assert obl["owner"] == "P-2"
@@ -162,7 +162,7 @@ def test_reingest_version_is_a_no_op(conn):
 def test_reingest_company_is_a_no_op(conn):
     ingest.ingest_company(conn, COMPANY)
     ingest.ingest_company(conn, COMPANY)
-    assert conn.execute("select count(*) from nodes").fetchone()[0] == 31
+    assert conn.execute("select count(*) from nodes").fetchone()[0] == 32
     assert conn.execute("select count(*) from edges").fetchone()[0] == 21
 
 

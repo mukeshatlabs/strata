@@ -485,9 +485,9 @@ obligations those paths started from in `obligation_ids`, so the review page can
 both routes.
 
 Tasks for escalated items go to the expert queue instead, as a single task with no
-node: nothing reaches an owner until a human has agreed the claim is sound. The
-prototype's company graph has no counsel or director node, so an expert task carries no
-assignee and the queue itself is the addressee. Every task creation is written as an
+node: nothing reaches an owner until a human has agreed the claim is sound. Expert tasks are
+assigned to P-8, regulatory counsel, who exists in the company graph for exactly this
+role and owns nothing else. Every task creation is written as an
 event.
 
 ### 3.9 Audit history and rollback
