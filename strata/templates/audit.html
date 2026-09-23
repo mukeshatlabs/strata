@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% set page = 'audit' %}
+{% block title %}Audit{% endblock %}
+{% block body %}
+<h1>Audit{% if upto %} — state as of event {{ upto }}{% endif %}</h1>
+<p class="sub">
+  {{ log|length }} events, newest first &middot;
+  {{ state.accepted_claims|length }} accepted claims &middot;
+  {{ state.open_tasks()|length }} open tasks &middot;
+  {{ state.created_nodes|length }} nodes created by event
+</p>
+
+{% if state.rolled_back_to is not none %}
+<p class="note">This project was <strong>rolled back to {{ state.rolled_back_to }}</strong>.
+  Nothing was deleted; every event below is still in the log.</p>
+{% endif %}
+
+<form method="post" action="/projects/{{ project_id }}/rollback">
+  Roll back to sequence
+  <input name="to_seq" size="5" required>
+  <button type="submit">rollback</button>
+</form>
+<p class="sub">Rollback is itself an event. Later events are ignored on replay, not removed.</p>
+
+<section class="change">
+<table>
+  <tr><th>Seq</th><th>When</th><th>Actor</th><th>Type</th><th>Subject</th></tr>
+  {% for event in log %}
+  <tr data-seq="{{ event.seq }}" class="{{ 'done' if state.rolled_back_to is not none
+        and event.seq > state.rolled_back_to and event.type != 'rollback' }}">
+    <td>{{ event.seq }}</td>
+    <td class="meta">{{ event.ts[:19] }}</td>
+    <td>{{ event.actor }}</td>
+    <td><strong>{{ event.type }}</strong></td>
+    <td class="meta">{{ event.subject_id }}</td>
+  </tr>
+  {% endfor %}
+</table>
+</section>
+
+<p class="sub">
+  <a href="/projects/{{ project_id }}/state?upto={{ (state.last_seq // 2) or 1 }}">
+    View state as of event {{ (state.last_seq // 2) or 1 }}</a>
+</p>
+{% endblock %}

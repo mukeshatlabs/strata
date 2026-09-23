@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% set page = 'queue' %}
+{% block title %}Expert queue{% endblock %}
+{% block body %}
+<h1>Expert queue</h1>
+<p class="sub">
+  {{ items|length }} item(s) held back from owners until a human resolves them.
+</p>
+
+{% for item in items %}
+<section class="change">
+  <h2>{{ item.task.change_id }}</h2>
+  <p class="meta">
+    escalation reason: <strong>{{ item.task.reason }}</strong> &middot;
+    assignee {{ item.task.assignee or '—' }} &middot; status {{ item.task.status }}
+  </p>
+  <strong>{{ item.claim.summary }}</strong>
+  <blockquote>
+    &ldquo;{{ item.claim.quote }}&rdquo;<br>
+    <span class="badge {{ item.verification.status }}">{{ item.verification.status }}</span>
+    <span class="meta">
+      {{ item.claim.quote_para_id }}
+      {% if item.verification.reason %}&middot; {{ item.verification.reason }}{% endif %}
+    </span>
+  </blockquote>
+  <p class="meta">recommended: {{ item.task.recommended_action }}</p>
+
+  {% if item.task.reason == 'new_obligation' and item.task.status == 'open' %}
+  <form method="post" action="/tasks/{{ item.task.task_id }}/create-obligation">
+    <p class="meta">Create the obligation this change introduces:</p>
+    <table>
+      <tr><th>ID</th><td><input name="node_id" value="OBL-12" required></td></tr>
+      <tr><th>Name</th><td><input name="name" size="50" required></td></tr>
+      <tr><th>Text</th><td><textarea name="text" rows="2" cols="60"></textarea></td></tr>
+      <tr><th>Owner</th><td>
+        <select name="owner" required>
+          {% for person in people %}
+          <option value="{{ person.node_id }}">{{ person.node_id }} — {{ person.name }}</option>
+          {% endfor %}
+        </select></td></tr>
+      <tr><th>Source paragraph</th>
+          <td><input name="source_para" value="{{ item.source_para }}"></td></tr>
+    </table>
+    <button class="primary" type="submit">Create obligation and resolve</button>
+  </form>
+  {% elif item.task.status == 'open' %}
+  <form class="inline" method="post" action="/tasks/{{ item.task.task_id }}/approve">
+    <button type="submit">approve</button>
+  </form>
+  {% endif %}
+</section>
+{% else %}
+<p class="sub">Nothing escalated.</p>
+{% endfor %}
+{% endblock %}

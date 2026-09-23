@@ -120,7 +120,7 @@ strata/
     pipeline.py          run_version(version_id): the core loop
     llm.py               Anthropic client with disk cache
     app.py               FastAPI app and routes
-    templates/           review.html, queue.html, audit.html
+    templates/           base.html, review.html, queue.html, audit.html
   evals/
     run_evals.py
     results.md           committed output of the last run
@@ -641,7 +641,8 @@ misses correctly.
 - `GET /projects/{id}/audit` shows the event list with a rollback control.
 - `GET /projects/{id}/state?upto=N` shows the state as of event N.
 
-There are three Jinja templates and no JavaScript beyond form submission. The
+There are three page templates over one shared layout, and no JavaScript beyond
+form submission. The
 verification badge, the confidence, and the path are shown on every item, so the
 decisions that matter most in the system are visible in the product as well as in the
 code.

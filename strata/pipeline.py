@@ -226,6 +226,18 @@ def main(argv: list[str]) -> int:
         print(f"ingested {len(VERSIONS)} versions and the company graph into {DB_PATH}")
         return 0
 
+    if command == "bootstrap":
+        # make run: ingest and process v1 -> v2 from cache, so the review page
+        # has something on it the first time it is opened.
+        _ingest_all(conn)
+        run = run_version(conn, "proj-1", VERSIONS[1])
+        print(
+            f"{run['from_version']} -> {run['to_version']}: {run['changes']} changes,"
+            f" {run['claims']} claims, {len(run['tasks'])} tasks"
+        )
+        print("start the server and open http://localhost:8000")
+        return 0
+
     if command in ("run", "live"):
         if command == "live":
             _load_env()
@@ -245,7 +257,7 @@ def main(argv: list[str]) -> int:
                 create_obl_12(conn, "proj-1", run["tasks"])
         return 0
 
-    print(f"unknown command {command!r}; expected ingest, run or live")
+    print(f"unknown command {command!r}; expected ingest, bootstrap, run or live")
     return 2
 
 

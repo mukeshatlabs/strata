@@ -10,7 +10,9 @@ setup:
 	$(PIP) install --upgrade pip
 	$(PIP) install -e ".[dev]"
 
-run: reset
+run:
+	rm -f strata.db
+	$(PY) -m strata.pipeline bootstrap
 	$(PY) -m uvicorn strata.app:app --reload --port 8000
 
 test:

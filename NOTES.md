@@ -508,3 +508,40 @@ pure word deletion; the model names `v3:p7`, whose changed-span list is empty, s
 verifier rejects and routes to the expert queue. The v2 prompt rule did not move it.
 That is the system doing what it is for: an unverifiable citation reaches a human
 rather than an owner. A rejection rate reported rather than hidden is the PRD 6 metric.
+
+## Task 15: app and templates
+
+**Four templates, not three.** TDD 1.2 listed `review.html`, `queue.html` and
+`audit.html`. A `base.html` layout holds the nav and the stylesheet so the three pages
+do not carry three copies of them. TDD 1.2 and TDD 6 updated to say three page
+templates over one shared layout.
+
+**Every page is rendered from a replay, not from a cache of the last run.** The route
+handlers call `events.replay` and `graph.load(conn, events.effective(...))` on each
+request, so the screen and the audit trail cannot disagree, and a rollback changes what
+the review page shows without any other code path being involved. At this size a
+replay is milliseconds; TDD 3.9 already accepted that trade.
+
+**The edit form is the override path.** `POST /tasks/{id}/edit` looks the change up by
+the task's `change_id`, computes both keys from task 11, and writes them into the
+`task_edited` payload. Without that the correction would be recorded but would never be
+found again, and R4.4 would silently not hold.
+`test_edit_records_an_override_with_both_keys` asserts both keys are present and that
+`state.overrides` is non-empty afterwards.
+
+**Finding: the cached v3 run depends on the text an expert types.** Loading v3 through
+the app missed the cache at first. The v3 mapping prompts list OBL-12 with its name and
+text, which only exist once an expert has created the node, so the recorded responses
+are tied to the exact wording `make live` used. The test now walks the real journey,
+resolving the new-obligation item with `pipeline.OBL_12`'s values before loading v3, and
+the docstring says why.
+
+This is a genuine prototype limitation rather than a test artefact: a reviewer who
+types a different name into the create-obligation form and then loads v3 without an API
+key gets a `CacheMiss` naming the call. It belongs in the README's known limitations.
+The fix in a real system is that the mapping prompt would be built from a retrieval
+step over a live obligation store rather than replayed from a frozen cache.
+
+**make run is now reset, bootstrap, serve.** `pipeline bootstrap` ingests and runs
+v1 to v2 from cache before uvicorn starts, so the review page has 14 changes, 9 owner
+tasks and 2 expert items on first load rather than being empty.
