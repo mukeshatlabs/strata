@@ -598,3 +598,26 @@ extraction precision 88% and recall 94%, mapping precision and recall 100%, impa
 coverage 13/13 with zero leakage, citation fidelity 30 verified, 0 near, 1 rejected.
 The single rejection is the system working: an unverifiable citation reaching a human
 instead of an owner.
+
+## Task 16: fresh-clone check
+
+Cloned into an empty directory and followed README.md only, with no API key in the
+environment.
+
+| Command | Result |
+| --- | --- |
+| `make setup` | venv created, 33 packages installed |
+| `make test` | 257 passed, no key, no network |
+| `make eval` | ran, and `git status` stayed clean afterwards |
+| `make run` | bootstrap processed v1 to v2, all four routes returned 200 |
+
+Nothing had to be fixed. Two things the check confirmed that a local run cannot:
+
+`make eval` regenerated `evals/results.md` byte for byte, so the committed table is
+reproducible from the committed cache rather than an artefact of the machine that
+recorded it. A clean `git status` after an eval run is the cheapest possible proof of
+that, and is worth keeping as the check.
+
+The clone contains no `.env`, no `strata.db` and no `.venv`, so the gitignore from task
+1 held for the whole build. `.env.example` is the only environment file present, which
+is what a reviewer needs to know a key is optional.
