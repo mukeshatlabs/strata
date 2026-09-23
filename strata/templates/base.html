@@ -91,7 +91,8 @@
   <h4>Versions</h4>
   {% for version in versions %}
   <div class="ver">
-    <b>Version {{ version.number }}</b>
+    <a href="/projects/{{ project_id }}/versions/{{ version.version_id }}"
+       style="display:inline; padding:0"><b>Version {{ version.number }}</b></a>
     <span class="tag">
       {% if version.status == 'processed' %}processed &middot; {{ version.changes }} changes
       {% elif version.status == 'baseline' %}baseline

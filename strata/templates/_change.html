@@ -21,7 +21,9 @@
       <br>
       <span class="badge {{ entry.verification.status }}">{{ entry.verification.status }}</span>
       <span class="meta">
-        {{ entry.claim.quote_para_id }}
+        <a href="/projects/{{ project_id }}/versions/{{
+          entry.claim.quote_para_id.split(':')[0] }}#{{ entry.claim.quote_para_id
+          }}">{{ entry.claim.quote_para_id }}</a>
         {% if entry.verification.status == 'near' %}
           &middot; edit distance {{ entry.verification.edit_distance }}
         {% elif entry.verification.status == 'rejected' %}

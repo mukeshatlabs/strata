@@ -15,13 +15,22 @@
   <br><br><span class="meta">{{ error }}</span></p>
 {% endif %}
 
-{% if blocking and next_version %}
-<p class="note">
-  {{ blocking|length }} item(s) in the
-  <a href="/projects/{{ project_id }}/queue">expert queue</a> create a new obligation.
-  Resolve them before loading {{ next_version }}, which maps against it.
-</p>
-{% endif %}
+{% if orientation %}
+<div class="banner">
+  {% for para in orientation %}
+  <p><span class="head">{{ para.heading }}</span>
+    {% for sentence in para.sentences %}{{ sentence }} {% endfor %}</p>
+  {% if para.next_step %}
+  <p class="next"><strong>Next:</strong> {{ para.next_step }}
+    {% if blocking %}
+    <a href="/projects/{{ project_id }}/queue">Open the expert queue</a>
+    ({{ blocking|length }} item(s) waiting).
+    {% endif %}
+    {% if para.about_link %}
+    New here? <a href="/projects/{{ project_id }}/about">Read about this workspace</a>.
+    {% endif %}</p>
+  {% endif %}
+  {% endfor %}
 
 {% if next_version %}
 <form method="post" action="/projects/{{ project_id }}/versions">
@@ -30,19 +39,6 @@
 </form>
 <p class="sub">Diffs {{ next_version }} against the version before it and runs the pipeline.</p>
 {% endif %}
-
-{% if orientation %}
-<div class="banner">
-  {% for para in orientation %}
-  <p><span class="head">{{ para.heading }}</span>
-    {% for sentence in para.sentences %}{{ sentence }} {% endfor %}</p>
-  {% if para.next_step %}
-  <p class="next"><strong>Next:</strong> {{ para.next_step }}
-    {% if para.about_link %}
-    New here? <a href="/projects/{{ project_id }}/about">Read about this workspace</a>.
-    {% endif %}</p>
-  {% endif %}
-  {% endfor %}
 </div>
 {% endif %}
 

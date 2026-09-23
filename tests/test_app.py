@@ -307,9 +307,12 @@ def test_loading_the_next_version_too_early_explains_instead_of_crashing(client,
 
 
 def test_review_warns_while_a_new_obligation_item_is_open(client):
+    """One warning, in the banner's next step, not a second copy above it."""
     body = client.get(f"/projects/{PROJECT}/review").text
-    assert "create a new obligation" in body
-    assert "Resolve them before loading v3" in body
+    assert "a new obligation must be created" in body
+    assert "Open the expert queue" in body
+    assert "2 item(s) waiting" in body
+    assert body.count("Open the expert queue") == 1
 
 
 def _resolve_new_obligation_items(client) -> int:
@@ -339,9 +342,9 @@ def _resolve_new_obligation_items(client) -> int:
 def test_the_warning_clears_once_every_item_is_resolved(client):
     """The v2 penalty paragraph raises two created claims, so both must be resolved."""
     assert _resolve_new_obligation_items(client) == 2
-    assert "Resolve them before loading" not in client.get(
-        f"/projects/{PROJECT}/review"
-    ).text
+    body = client.get(f"/projects/{PROJECT}/review").text
+    assert "Open the expert queue" not in body
+    assert "expert queue is clear" in body, "the next step moves on"
 
 
 def test_a_failed_run_can_be_retried_after_resolving(client, monkeypatch):
@@ -674,3 +677,95 @@ def test_about_page_counts_cache_entries(client):
     body = client.get(f"/projects/{PROJECT}/about").text
     live = len(list(pathlib.Path("data/llm_cache").glob("*.json")))
     assert str(live) in body
+
+
+# --- task 18: version pages (PRD R4.9, TDD 6.1, 6.2, 6.5) ---
+
+
+def test_version_page_renders_the_text_as_issued(client):
+    r = client.get(f"/projects/{PROJECT}/versions/v2")
+    assert r.status_code == 200
+    body = r.text
+    assert "shall complete the interconnection study for a small storage resource" in body
+    assert "within thirty (30) business days" in body
+
+
+def test_version_page_shows_the_header_block(client):
+    body = client.get(f"/projects/{PROJECT}/versions/v2").text
+    assert "26-0412-RM" in body
+    assert "revised proposed" in body
+    assert "2026-05-14" in body
+
+
+def test_version_page_labels_and_anchors_every_paragraph(client):
+    import re
+
+    body = client.get(f"/projects/{PROJECT}/versions/v2").text
+    assert 'id="v2:p12"' in body
+    anchors = re.findall(r'id="(v2:p\d+)"', body)
+    assert len(anchors) == 26, "every paragraph of v2 is addressable"
+    assert anchors == [f"v2:p{n}" for n in range(1, 27)]
+    assert "v2:p12" in body, "the ID is shown, not only used as an anchor"
+
+
+def test_version_page_paragraph_text_matches_the_database(client):
+    conn = db.connect(app_module.DB_PATH)
+    row = conn.execute("select text from paragraphs where para_id='v2:p12'").fetchone()
+    conn.close()
+    body = client.get(f"/projects/{PROJECT}/versions/v2").text
+    assert row["text"][:80] in body, "rendered as stored, so it is what the verifier saw"
+
+
+def test_every_ingested_version_has_a_page(client):
+    for version_id in ("v1", "v2", "v3"):
+        assert client.get(f"/projects/{PROJECT}/versions/{version_id}").status_code == 200
+
+
+def test_unknown_version_is_404(client):
+    assert client.get(f"/projects/{PROJECT}/versions/v9").status_code == 404
+
+
+def test_review_quote_reference_links_to_the_paragraph(client):
+    """R4.9: the check the verifier does mechanically, one click for a reviewer."""
+    body = client.get(f"/projects/{PROJECT}/review").text
+    assert f'href="/projects/{PROJECT}/versions/v2#v2:p12"' in body
+
+    material = body[: body.index("<details")]
+    assert "#v2:p12" in material, "the link is on the claim, not only in the details"
+
+
+def test_sidebar_links_every_version(client):
+    body = client.get(f"/projects/{PROJECT}/audit").text
+    sidebar = body[body.index("<nav"): body.index("</nav>")]
+    for version_id in ("v1", "v2", "v3"):
+        assert f'href="/projects/{PROJECT}/versions/{version_id}"' in sidebar
+
+
+def test_sidebar_keeps_the_load_button_only_on_the_next_version(client):
+    body = client.get(f"/projects/{PROJECT}/review").text
+    sidebar = body[body.index("<nav"): body.index("</nav>")]
+    assert sidebar.count('name="version_id"') == 1
+    assert 'value="v3"' in sidebar
+
+
+def test_next_step_renders_under_the_orientation_paragraphs(client):
+    """TDD 6.2: the orientation asks the question, the next step answers it."""
+    body = client.get(f"/projects/{PROJECT}/review").text
+    banner = body[body.index('class="banner"'):]
+    banner = banner[: banner.index("</div>")]
+    assert "compared against version 1" in banner
+    assert "Next:" in banner
+    assert banner.index("compared against version 1") < banner.index("Next:")
+
+
+def test_load_button_is_under_the_orientation_not_above_it(client):
+    body = client.get(f"/projects/{PROJECT}/review").text
+    assert body.index("compared against version 1") < body.index("Load next version")
+
+
+def test_version_page_is_reachable_from_a_rejected_citation(client, monkeypatch):
+    """A rejected quote is exactly when a reviewer wants the source text."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    _load_v3(client)
+    body = client.get(f"/projects/{PROJECT}/queue").text
+    assert f'href="/projects/{PROJECT}/versions/' in body

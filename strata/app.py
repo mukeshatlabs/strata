@@ -8,7 +8,7 @@ form submission, and no client-side state.
 from dataclasses import dataclass
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -422,6 +422,35 @@ def about(request: Request, project_id: str):
         "paragraph_count": conn.execute("select count(*) from paragraphs").fetchone()[0],
         "cache_entries": len(list(llm.CACHE_DIR.glob("*.json"))),
         "event_count": len(events.history(conn, project_id)),
+    })
+
+
+@app.get("/projects/{project_id}/versions/{version_id}")
+def version_text(request: Request, project_id: str, version_id: str):
+    """One version's text as issued, with paragraph IDs and anchors (PRD R4.9).
+
+    Rendered from the versions and paragraphs tables, so what is on the screen is
+    what the verifier searched, not a re-read of the file.
+    """
+    conn = connect()
+    row = conn.execute(
+        "select * from versions where version_id=? and company_id=?",
+        (version_id, COMPANY_ID),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"no version {version_id!r}")
+
+    paragraphs = list(conn.execute(
+        "select para_id, number, section, text from paragraphs where version_id=?"
+        " order by number",
+        (version_id,),
+    ))
+    state = events.replay(conn, project_id)
+    return templates.TemplateResponse(request, "version.html", {
+        **_layout(conn, project_id, state),
+        "version": row,
+        "doc_status": STATUS_WORDS.get(row["status"], row["status"]),
+        "paragraphs": paragraphs,
     })
 
 

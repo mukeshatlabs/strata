@@ -63,8 +63,9 @@ cache as they stood at that commit.
 0. `make run`, then read **About this workspace** from the sidebar. It describes the
    synthetic proceeding, its deliberate traps, and the company graph, over live counts.
 1. Open the review center. The banner says what the last run found and what to do next.
-   Read one material change: the quote, the badge, the paths. Then open the collapsed
-   "not material" block to see what was filtered out.
+   Read one material change: the quote, the badge, the paths. Click the paragraph
+   reference under a quote to see that paragraph in the version as issued. Then open the
+   collapsed "not material" block to see what was filtered out.
 2. Open the expert queue. The v2 penalty paragraph is there as `new_obligation`,
    because no existing obligation can be the right link for a duty that did not exist.
 3. Create the obligation with the prefilled form. That writes a `node_created` event;

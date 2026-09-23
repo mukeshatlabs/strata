@@ -19,7 +19,9 @@
     &ldquo;{{ item.claim.quote }}&rdquo;<br>
     <span class="badge {{ item.verification.status }}">{{ item.verification.status }}</span>
     <span class="meta">
-      {{ item.claim.quote_para_id }}
+      <a href="/projects/{{ project_id }}/versions/{{
+        item.claim.quote_para_id.split(':')[0] }}#{{ item.claim.quote_para_id
+        }}">{{ item.claim.quote_para_id }}</a>
       {% if item.verification.reason %}&middot; {{ item.verification.reason }}{% endif %}
     </span>
   </blockquote>

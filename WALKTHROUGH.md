@@ -257,7 +257,13 @@ produce a correct banner with no template change.
 
 Within a pair, changes with a material claim are listed first and the rest are collapsed
 behind one counted summary line, because the not-material changes are the majority and
-are the ones a reviewer has already decided not to care about. Approve, edit and escalate append events;
+are the ones a reviewer has already decided not to care about.
+
+Every version has a page of its own, rendered from the `versions` and `paragraphs`
+tables rather than re-read from the file, so what is on the screen is what the verifier
+searched. Each paragraph carries its ID as an anchor, and a claim's `quote_para_id` on
+the review center links to it, which turns the check the verifier performs mechanically
+into one click for the person who has to sign the memo. Approve, edit and escalate append events;
 **edit** additionally computes the change signature and the lineage key and writes them
 into the payload, which is what makes the correction findable in the next version.
 Rollback appends a `rollback` event, and `replay` ignores everything after its `to_seq`

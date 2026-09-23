@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% set page = 'version' %}
+{% block title %}Version {{ version.number }}{% endblock %}
+{% block body %}
+<h1>Version {{ version.number }}, as issued</h1>
+<p class="sub">{{ version.title }}</p>
+
+<section class="change">
+  <table>
+    <tr><th>Docket</th><td>{{ version.docket }}</td></tr>
+    <tr><th>Version</th><td>{{ version.number }}</td></tr>
+    <tr><th>Status</th><td>{{ doc_status }}</td></tr>
+    <tr><th>Issued</th><td>{{ version.issued }}</td></tr>
+    <tr><th>Effective</th><td>{{ version.effective or '—' }}</td></tr>
+  </table>
+</section>
+
+<p class="sub">{{ paragraphs|length }} paragraphs. Each is labelled with the ID the
+  verifier uses; a quote on the review center links to the paragraph it came from.</p>
+
+<section class="change">
+{% for para in paragraphs %}
+  {% if loop.first or para.section != paragraphs[loop.index0 - 1].section %}
+  <h3 class="pair">{{ para.section }}</h3>
+  {% endif %}
+  <p id="{{ para.para_id }}">
+    <span class="meta">[{{ para.para_id }}]</span><br>
+    {{ para.text }}
+  </p>
+{% endfor %}
+</section>
+{% endblock %}

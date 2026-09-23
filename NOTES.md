@@ -788,3 +788,27 @@ the same mistake in different clothes: a test asserting paragraph order across a
 pair, when material changes now come first, and a test asserting the next step after v3.
 Neither was a defect; both were tests pinned to the old behaviour, and the spec changed
 under them.
+
+## Task 18: version pages
+
+Built against PRD R4.9 and TDD 6.1, 6.2 and 6.5, spec committed first in 54ffe18.
+
+**The version page renders from the database, not from the file.** `version.html` reads
+the `versions` and `paragraphs` tables, so the text on the screen is the text the
+verifier searched, offsets and all. Re-reading the markdown would have been easier and
+would have been a second source of truth for the one thing this product claims to be
+careful about.
+
+**The quote link is the point of the task.** A claim's `quote_para_id` is now a link to
+`versions/{vid}#{para_id}`. The verifier already proves mechanically that the quote is in
+that paragraph; the link lets the person whose name goes on the memo confirm it by eye
+without opening a file. It is on the queue page too, because a rejected citation is
+exactly when someone wants the source text.
+
+**Deduplicated while moving the next-step notice.** Putting the next step under the
+orientation paragraphs, per TDD 6.2, placed it directly above the hand-written blocking
+warning added earlier, which said the same thing in different words. The warning is gone
+and its queue link and count moved into the next-step line, so there is one sentence
+telling you what to do rather than two. The two tests that pinned the old wording were
+updated, not deleted: they now assert the single warning and that the next step moves on
+to "expert queue is clear" once the items are resolved.
