@@ -357,3 +357,49 @@ drops them because they are not state.
 `confirmed_impacts` only on `task_approved` or `task_edited`, never on extraction or
 routing. PRD R4.3 says an escalated or unreviewed item is not applied to project state
 until a human approves it, and this is where that is enforced rather than assumed.
+
+## Task 12: pipeline
+
+**Bug: the `impact_found` payload was missing `claim_id`.** `events.replay` keys impacts
+on `claim_id`, but `Impact` has no such field: it records the obligation it came from,
+not the claim. Writing `impact.__dict__` straight into the event raised `KeyError` on
+the next replay. Found by `test_tasks_are_replayable_into_state`, which replays after a
+run rather than trusting the return value. Fixed by merging `claim_id` into the payload
+at the write. Worth noting for the walkthrough: a dataclass and its event payload are
+not the same shape, and only a replay test catches the difference.
+
+**Failure: the test stub's discriminator was too loose.** The stub answered "this is
+CH-7" for any prompt containing "Study completion." and "thirty (30)", which is also
+true of CH-6's prompt, because `context_for` includes two paragraphs either side and
+`v2:p12` is two after `v2:p10`. The stub then returned a claim quoting `v2:p12` for a
+change spanning `v1:p10` and `v2:p10`, and `extract.parse_response` correctly rejected
+it as a quote from a paragraph the change does not span. Fixed in the stub by keying on
+the changed-paragraph label the prompt emits. The parser's paragraph check caught a
+malformed test before it could produce a misleading pass.
+
+**Failure: a test assumed a global stage order.** `test_stages_run_in_order` asserted
+the last model call was the mapping call. CH-7 is the seventh of fourteen changes, so
+extraction continues after its mapping call: the loop is per change, not per stage. The
+test now asserts the interleaving that actually holds, that mapping follows its own
+extraction and that later changes are still extracted afterwards.
+
+**Order of the gates.** A rejected citation is routed before materiality is consulted,
+because TDD 3.4 says a rejected quote on a real change is still a change someone must
+look at. A non-material claim stops after verification with no mapping call and no
+tasks. A `created` claim skips the mapping call entirely.
+`test_created_claim_skips_the_mapping_call` makes the stub raise if mapping is called,
+so the skip is asserted by the absence of a call rather than by the shape of the result.
+
+**Overrides are consulted before the model.** `_overrides_for` walks the candidate
+obligations and looks each one up by both keys from task 11. If any correction matches,
+those links are used and `llm.call` never happens, which is what PRD R4.4 asks for: not
+re-proposed, and not re-asked. The test asserts `propose_links` is absent from the call
+log, not merely that the result contains OBL-5.
+
+**The end-to-end test skips rather than fails.** It runs the real cache with no key and
+calls `pytest.skip` with the missing key and the `make live` hint when a response is not
+yet recorded. Task 13 populates the cache and the test starts running on its own.
+
+**CLI added.** `python -m strata.pipeline ingest|run|live`, which the Makefile has
+referenced since task 1. `make reset` now works: 3 versions, 77 paragraphs, 32 nodes,
+21 edges.
