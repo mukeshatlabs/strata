@@ -321,3 +321,39 @@ project or document and has no edges: the node exists only to be the expert queu
 assignee, which is what PRD 2 describes. `routing.EXPERT = "P-8"` is the single place
 the ID appears. Node count moves from 31 to 32 and the person count from 7 to 8;
 `tests/test_ingest.py`, `tasks.md` and TDD 3.8 updated to match.
+
+## Task 11: events
+
+**Change signature is content-keyed.** `signature(change)` hashes the kind and both
+normalized texts and contains no paragraph ID and no version. Paragraph IDs do not
+survive renumbering, and renumbering happens in every version here: removing `v2:p14`
+shifts every later ordering paragraph by one, so an ID-keyed override would treat CH-16
+and CH-17 as new work. Normalization runs through `verify.normalize`, the same function
+the citation check uses, so a whitespace or curly-quote difference does not orphan a
+correction.
+
+**Overrides are stored under two keys.** The edit signature catches the same edit seen
+again. The lineage key, a hash of the normalized to-text of the corrected change,
+catches the case that actually matters: v2 produces some text, Dana corrects the mapping
+for it, and v3 edits that same text again. The v3 change has a different edit signature
+because its to-text is new, but its from-text is exactly what v2 produced, so the
+lineage key matches and the correction is applied before the mapping model is called.
+`test_override_carries_into_a_later_edit_of_the_same_paragraph` constructs that pair
+directly and asserts the signatures differ while the override is still found.
+
+The chain is deliberately one generation long.
+`test_lineage_does_not_match_a_third_generation_by_accident` asserts an unrelated later
+change finds nothing: an override follows the text it corrected into the next edit of
+that text, not forward forever.
+
+**Rollback is resolved in its own pass.** A rollback undoes events that precede it in
+the log, so `effective()` walks the history once and drops already-collected events
+above the rollback's `to_seq` before anything is folded. Nested rollbacks then need no
+special casing, and events appended *after* a rollback still apply, both tested.
+`history()` keeps the rollback events so the audit page can show them; `effective()`
+drops them because they are not state.
+
+**Acceptance requires a human.** A claim enters `accepted_claims` and its impacts enter
+`confirmed_impacts` only on `task_approved` or `task_edited`, never on extraction or
+routing. PRD R4.3 says an escalated or unreviewed item is not applied to project state
+until a human approves it, and this is where that is enforced rather than assumed.

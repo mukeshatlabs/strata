@@ -501,8 +501,33 @@ event after `to_seq` as ignored from that point on. Nothing is deleted, and the
 rollback itself appears in the audit list.
 
 Human overrides carry forward between versions. When v3 is processed, a link the user
-corrected in v2 for the same obligation and the same change signature is applied from
-the override table before the model is asked (PRD R4.4).
+corrected in v2 is applied from the override table before the model is asked (PRD
+R4.4). The table is keyed on `(key, obligation_id)`, and each correction is stored
+under two keys.
+
+The first is the **edit signature**: a hash of the change's kind and both of its
+normalized texts, with no paragraph ID and no version in it. Keying on paragraph IDs
+would not survive renumbering, and renumbering happens in every version of this
+proceeding: the removal of `v2:p14` shifts every ordering paragraph after it by one, so
+an ID-keyed override would treat the same edit as new work. Normalizing both texts with
+the same function the citation verifier uses means a whitespace or curly-quote
+difference does not orphan a correction either.
+
+The second is the **lineage key**: a hash of the normalized to-text of the change that
+was corrected. On lookup, the edit signature of the new change is tried first, then the
+lineage key of its *from*-text. That second match is what carries a correction into a
+later re-edit of the same paragraph. Dana corrects the mapping for the v1 to v2 change
+that produced some text; when v3 edits that text again, the v3 change has a different
+edit signature, because its to-text is new, but its from-text is exactly what v2
+produced, so the lineage key matches and her correction is applied instead of the model
+being asked again. Without it the override would only ever match a re-run of the
+identical edit, which is the case that matters least: a paragraph that changes in every
+version is precisely the one a reviewer does not want to re-answer.
+
+The lineage chain does not extend indefinitely. An override follows the text it
+corrected into the next edit of that text, and the next edit produces different text
+under a different key; a third-generation change matches nothing unless a human
+corrects it again.
 
 The graph grows through events. When an expert resolves a `new_obligation` item, the
 review center offers a "create obligation" action that takes a name, text, owner, and
