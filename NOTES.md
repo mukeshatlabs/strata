@@ -80,3 +80,36 @@ exists only on the from-side, and the rule now says so rather than rejecting bot
 
 Gold VF-7 is the same shape from the other direction: a removal whose quote must be
 verified against the from-version, since the text is gone from v3.
+
+## Task 5: llm client
+
+**Model ID.** `claude-opus-5`, in one constant at the top of `llm.py` alongside
+`EFFORT` and `MAX_TOKENS`. Taken from the current Claude API reference rather than
+from memory, because the ID is part of the cache hash and every committed cache
+filename depends on it. The ID is complete as written and takes no date suffix.
+
+**Structured output.** `output_config={"format": {"type": "json_schema", "schema": ...}}`
+on `messages.create()`. The older top-level `output_format` parameter is deprecated.
+The first text block of the response is guaranteed to be valid JSON against the schema,
+so the parser is `json.loads`, not prose scraping (TDD 3.3).
+
+**No sampling parameters.** `temperature`, `top_p` and `top_k` are rejected on this
+model. Reproducibility across runs therefore comes from the committed cache and
+nothing else, which is the reason TDD 3.10 commits it. A live run is not expected to
+reproduce a previous live run byte for byte.
+
+**Schema is not in the cache key.** TDD 3.10 defines the key as model + prompt version
++ messages. Hashing the schema as well would mean a cosmetic schema edit invalidates
+the whole committed cache and needs a paid live run to repopulate. The consequence is
+that editing a response schema requires bumping `prompt_version`; this is stated in the
+`cache_key` docstring, and `test_cache_key_is_not_affected_by_schema` pins it.
+
+**Key detection.** `ANTHROPIC_API_KEY` only. The SDK would also resolve an
+`ant auth login` profile, so an unset variable does not strictly mean no credentials,
+but CLAUDE.md makes the env var the switch and tests must never reach the network.
+`_client` is imported lazily and is only reached on a cache miss with a key set, so an
+offline run never constructs a client.
+
+**Refusal and truncation raise rather than cache.** A `stop_reason` of `refusal` or
+`max_tokens` means there is no valid response to record; writing one would poison the
+committed cache with a failure that later runs would replay as though it were real.
