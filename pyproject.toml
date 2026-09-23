@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "strata"
+version = "0.1.0"
+description = "Regulatory change-to-action workflow prototype"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "jinja2",
+    "python-multipart",
+    "rapidfuzz",
+    "anthropic",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "httpx",
+]
+
+[tool.setuptools]
+packages = ["strata"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
