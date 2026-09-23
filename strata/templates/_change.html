@@ -69,7 +69,17 @@
             <button type="submit">approve</button>
           </form>
           <form class="inline" method="post" action="/tasks/{{ task.task_id }}/edit">
-            <input name="obligation_id" size="7" placeholder="OBL-5" required>
+            <label class="meta">correct link to
+              <select name="obligation_id" required>
+                <option value="" selected disabled>choose an obligation</option>
+                {% for obligation in obligations %}
+                {% if obligation.node_id not in task.obligation_ids %}
+                <option value="{{ obligation.node_id }}">{{ obligation.node_id }}
+                  &mdash; {{ obligation.name }}</option>
+                {% endif %}
+                {% endfor %}
+              </select>
+            </label>
             <button type="submit">edit</button>
           </form>
           <form class="inline" method="post" action="/tasks/{{ task.task_id }}/escalate">

@@ -353,8 +353,14 @@ def _review_context(conn, project_id: str, error: str | None = None) -> dict:
         if t.get("reason") == "new_obligation" and t.get("status") == "open"
     ]
     layout = _layout(conn, project_id, state)
+    company = graph.load(conn, events.effective(conn, project_id))
+    obligations = sorted(
+        [n for n in company.nodes.values() if n.type == "obligation"],
+        key=lambda n: int(n.node_id.split("-")[1]),
+    )
     return {
         **layout,
+        "obligations": obligations,
         "items": review_items(conn, state, _changes(conn)),
         "next_version": _next_version(conn, state),
         "owner_count": len([t for t in state.tasks.values() if t.get("queue") == "owner"]),

@@ -903,3 +903,102 @@ def test_first_item_still_prefills_the_recorded_obligation(client):
     data = _form_defaults(client.get(f"/projects/{PROJECT}/queue").text)
     assert data["node_id"] == pipeline.OBL_12["id"]
     assert data["name"] == pipeline.OBL_12["name"]
+
+
+# --- edit form uses an obligation select ---
+
+
+def _edit_form(html_text, task_id):
+    """The edit form markup for one task, whitespace collapsed."""
+    marker = f"/tasks/{task_id}/edit"
+    seg = html_text[html_text.index(marker):]
+    return " ".join(seg[: seg.index("</form>")].split())
+
+
+def test_edit_form_is_a_select_not_a_text_box(client):
+    body = client.get(f"/projects/{PROJECT}/review").text
+    assert 'placeholder="OBL-5"' not in body, "the free-text input is gone"
+    assert 'name="obligation_id"' in body
+    assert "correct link to" in body
+    assert "<select" in body
+
+
+def test_edit_select_lists_obligations_by_id_and_name(client):
+    import html as html_mod
+
+    body = client.get(f"/projects/{PROJECT}/review").text
+    conn = db.connect(app_module.DB_PATH)
+    task = next(t for t in events.replay(conn, PROJECT).open_tasks()
+                if t.get("node_id") == "DOC-2")
+    conn.close()
+
+    form = html_mod.unescape(_edit_form(body, task["task_id"].replace(">", "&gt;")))
+    assert "OBL-5" in form
+    assert "Study scope for storage resources" in form, "names, not just ids"
+    assert "OBL-1" in form and "OBL-11" in form
+
+
+def test_edit_select_excludes_obligations_already_linked_to_that_task(client):
+    """PRJ-1 is reached from OBL-3 and OBL-4, so neither is a correction for it."""
+    import html as html_mod
+    import re
+
+    body = client.get(f"/projects/{PROJECT}/review").text
+    conn = db.connect(app_module.DB_PATH)
+    task = next(t for t in events.replay(conn, PROJECT).open_tasks()
+                if t.get("node_id") == "PRJ-1")
+    conn.close()
+    assert sorted(task["obligation_ids"]) == ["OBL-3", "OBL-4"]
+
+    form = html_mod.unescape(_edit_form(body, task["task_id"].replace(">", "&gt;")))
+    options = re.findall(r'<option value="(OBL-\d+)"', form)
+    assert "OBL-3" not in options
+    assert "OBL-4" not in options
+    assert "OBL-5" in options and "OBL-1" in options
+    assert len(options) == 9, "eleven obligations less the two already linked"
+
+
+def test_edit_select_offers_everything_for_a_task_with_no_links(client):
+    import html as html_mod
+    import re
+
+    body = client.get(f"/projects/{PROJECT}/review").text
+    conn = db.connect(app_module.DB_PATH)
+    task = next(t for t in events.replay(conn, PROJECT).open_tasks()
+                if not t.get("obligation_ids"))
+    conn.close()
+    form = html_mod.unescape(_edit_form(body, task["task_id"].replace(">", "&gt;")))
+    assert len(re.findall(r'<option value="(OBL-\d+)"', form)) == 11
+
+
+def test_edit_select_includes_an_obligation_created_by_event(client, monkeypatch):
+    import html as html_mod
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    _resolve_new_obligation_items(client)
+    body = client.get(f"/projects/{PROJECT}/review").text
+    conn = db.connect(app_module.DB_PATH)
+    task = next(t for t in events.replay(conn, PROJECT).open_tasks()
+                if t.get("node_id") == "DOC-2")
+    conn.close()
+    form = html_mod.unescape(_edit_form(body, task["task_id"].replace(">", "&gt;")))
+    assert "OBL-12" in form, "the graph grows through events, so the select does too"
+
+
+def test_posting_a_selected_obligation_still_records_the_override(client):
+    """The event and its two keys are unchanged; only the input changed."""
+    conn = db.connect(app_module.DB_PATH)
+    task = next(t for t in events.replay(conn, PROJECT).open_tasks()
+                if t.get("node_id") == "PRJ-1")
+    conn.close()
+
+    client.post(f"/tasks/{task['task_id']}/edit", data={"obligation_id": "OBL-5"})
+
+    conn = db.connect(app_module.DB_PATH)
+    edited = [e for e in events.history(conn, PROJECT) if e.type == "task_edited"]
+    assert len(edited) == 1
+    assert edited[0].payload["obligation_id"] == "OBL-5"
+    assert edited[0].payload["change_signature"].startswith("edit:")
+    assert edited[0].payload["lineage_key"].startswith("lineage:")
+    assert events.replay(conn, PROJECT).tasks[task["task_id"]]["status"] == "edited"
+    conn.close()

@@ -862,3 +862,21 @@ OBL-13, not OBL-12.
 
 The first item, with nothing created yet, keeps the recorded prefill, because that is
 the path the committed cache depends on.
+
+## Post-build: the edit form is an obligation select
+
+The correction form on a task row was a free-text box with a placeholder of OBL-5, which
+asked a reviewer to know the obligation ids by heart and accepted anything they typed.
+It is now a select of every obligation with its name, excluding the ones already linked
+to that task: OBL-3 and OBL-4 are not corrections for a task those two obligations
+reached, so PRJ-1 offers nine and DOC-2 offers ten.
+
+The candidate list comes from `graph.load`, not from the nodes table, so an obligation an
+expert created during review appears in it. A correction can point at a node that exists
+only because the log says so, which is the same rule the mapping call follows.
+
+Nothing behind the form changed: the field is still `obligation_id`, the route still
+computes the edit signature and the lineage key, and the `task_edited` payload is
+byte-identical. The existing override test posts the same field and still passes
+unchanged, which is the useful signal that this was a presentation change and not a
+behavioural one.
