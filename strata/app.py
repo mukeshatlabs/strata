@@ -341,8 +341,8 @@ def _layout(conn, project_id: str, state) -> dict:
         "docket": version["docket"] if version else "",
         "proceeding_title": version["title"] if version else "",
         "versions": versions,
-        "open_owner": len([t for t in state.open_tasks() if t.get("queue") == "owner"]),
-        "open_expert": len([t for t in state.open_tasks() if t.get("queue") == "expert"]),
+        "open_owner": len([t for t in state.pending_tasks() if t.get("queue") == "owner"]),
+        "open_expert": len([t for t in state.pending_tasks() if t.get("queue") == "expert"]),
     }
 
 

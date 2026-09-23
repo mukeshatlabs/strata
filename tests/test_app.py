@@ -1043,3 +1043,81 @@ def test_every_open_task_row_has_its_own_correction_details(client):
 def test_select_is_width_capped(client):
     body = client.get(f"/projects/{PROJECT}/review").text
     assert "details.correct select { max-width: 320px; }" in body
+
+
+# --- escalation moves a task to the expert queue ---
+
+
+def _an_owner_task(client):
+    conn = db.connect(app_module.DB_PATH)
+    task = next(t for t in events.replay(conn, PROJECT).open_tasks()
+                if t.get("queue") == "owner")
+    conn.close()
+    return task
+
+
+def test_escalating_moves_the_task_into_the_expert_queue(client):
+    task = _an_owner_task(client)
+    client.post(f"/tasks/{task['task_id']}/escalate")
+
+    conn = db.connect(app_module.DB_PATH)
+    replayed = events.replay(conn, PROJECT).tasks[task["task_id"]]
+    conn.close()
+    assert replayed["status"] == "escalated"
+    assert replayed["queue"] == "expert", "it left the owner queue"
+    assert replayed["assignee"] == "P-8", "regulatory counsel"
+    assert replayed["reason"] == "escalated by reviewer"
+
+
+def test_escalated_task_appears_on_the_expert_queue_page(client):
+    task = _an_owner_task(client)
+    client.post(f"/tasks/{task['task_id']}/escalate")
+
+    body = client.get(f"/projects/{PROJECT}/queue").text
+    assert task["task_id"].replace(">", "&gt;") in body
+    assert "escalated by reviewer" in body
+
+
+def test_escalating_moves_the_sidebar_count_between_queues(client):
+    def counts():
+        body = client.get(f"/projects/{PROJECT}/review").text
+        sidebar = body[body.index("<nav"): body.index("</nav>")]
+        import re
+        owner, expert = re.findall(r"<b>(\d+)</b> (?:owner|expert)", sidebar)
+        return int(owner), int(expert)
+
+    before_owner, before_expert = counts()
+    task = _an_owner_task(client)
+    client.post(f"/tasks/{task['task_id']}/escalate")
+    after_owner, after_expert = counts()
+
+    assert after_owner == before_owner - 1
+    assert after_expert == before_expert + 1
+
+
+def test_an_escalated_task_is_still_actionable_by_the_expert(client):
+    task = _an_owner_task(client)
+    client.post(f"/tasks/{task['task_id']}/escalate")
+    body = client.get(f"/projects/{PROJECT}/queue").text
+
+    marker = f"/tasks/{task['task_id'].replace('>', '&gt;')}/approve"
+    assert marker in body, "an expert must be able to resolve what was escalated"
+
+    client.post(f"/tasks/{task['task_id']}/approve")
+    conn = db.connect(app_module.DB_PATH)
+    assert events.replay(conn, PROJECT).tasks[task["task_id"]]["status"] == "approved"
+    conn.close()
+
+
+def test_escalation_does_not_disturb_other_tasks(client):
+    conn = db.connect(app_module.DB_PATH)
+    before = {t["task_id"]: t.get("queue") for t in events.replay(conn, PROJECT).tasks.values()}
+    conn.close()
+    task = _an_owner_task(client)
+    client.post(f"/tasks/{task['task_id']}/escalate")
+
+    conn = db.connect(app_module.DB_PATH)
+    after = {t["task_id"]: t.get("queue") for t in events.replay(conn, PROJECT).tasks.values()}
+    conn.close()
+    moved = [k for k in before if before[k] != after[k]]
+    assert moved == [task["task_id"]]

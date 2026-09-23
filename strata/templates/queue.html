@@ -27,7 +27,7 @@
   </blockquote>
   <p class="meta">recommended: {{ item.task.recommended_action }}</p>
 
-  {% if item.task.reason == 'new_obligation' and item.task.status == 'open' %}
+  {% if item.task.reason == 'new_obligation' and item.task.status in ('open', 'escalated') %}
 
   {% if created %}
   <form method="post" action="/tasks/{{ item.task.task_id }}/link-obligation">
@@ -73,7 +73,7 @@
     </table>
     <button class="primary" type="submit">Create obligation and resolve</button>
   </form>
-  {% elif item.task.status == 'open' %}
+  {% elif item.task.status in ('open', 'escalated') %}
   <form class="inline" method="post" action="/tasks/{{ item.task.task_id }}/approve">
     <button type="submit">approve</button>
   </form>

@@ -902,3 +902,29 @@ against six: expert items are open tasks too and render the form as well. That i
 correct behaviour rather than a bug, because an expert deciding that a supposedly new
 duty does map to an existing obligation is a correction and records the same override,
 so the test was fixed to count both queues.
+
+## Post-build: escalating a task did not reach the expert queue
+
+Reported from the running app. Pressing escalate on a review task appended a
+`task_escalated` event and `replay` set the status to `escalated`, and that was all it
+did. The task kept `queue: "owner"` and its owner's name, so the expert queue page,
+which selects on `queue == "expert"`, never showed it, and the sidebar counted it in
+neither queue because `open_tasks()` filters on `status == "open"`. The work vanished:
+the owner no longer saw it and no expert ever did.
+
+`replay` now treats a `task_escalated` event as moving the task: `queue` becomes
+`expert`, `assignee` becomes P-8, and `reason` becomes "escalated by reviewer", which is
+the distinction an expert needs, since every other item in that queue is there because a
+rule put it there.
+
+Two things had to follow, or the task would have appeared and been inert. `State` gained
+`pending_tasks()`, status open or escalated, and the sidebar counts use it, so escalating
+moves one item from the owner count to the expert count rather than deleting it from
+both. And the queue page's resolve controls now render for an escalated task as well as
+an open one; without that an expert could see the item and not act on it.
+
+Confirmed by test before the fix, five failing: the replayed queue, assignee and reason;
+the task appearing on the queue page; the sidebar moving one between counts; the item
+being actionable there; and no other task changing queue. The last one matters because
+the fix edits shared state during a fold, which is exactly where an over-broad change
+would show up.

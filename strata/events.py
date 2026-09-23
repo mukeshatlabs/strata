@@ -17,6 +17,9 @@ from .models import COMPANY_ID, Event
 HUMAN_ACTIONS = {"task_approved": "approved", "task_edited": "edited",
                  "task_escalated": "escalated"}
 ACCEPTING = ("task_approved", "task_edited")
+EXPERT = "P-8"                       # regulatory counsel, the expert queue's assignee
+ESCALATED_BY_REVIEWER = "escalated by reviewer"
+PENDING = ("open", "escalated")      # still waiting on a person
 
 
 @dataclass
@@ -38,6 +41,14 @@ class State:
 
     def open_tasks(self) -> list[dict]:
         return [t for t in self.tasks.values() if t["status"] == "open"]
+
+    def pending_tasks(self) -> list[dict]:
+        """Tasks still waiting on a person, in either queue.
+
+        An escalated task is not finished: it moved to the expert queue and is
+        open there, so the queue counts have to include it.
+        """
+        return [t for t in self.tasks.values() if t["status"] in PENDING]
 
     def closed_tasks(self) -> list[dict]:
         return [t for t in self.tasks.values() if t["status"] != "open"]
@@ -156,6 +167,12 @@ def _apply(state: State, event: Event) -> None:
         task = state.tasks.setdefault(body["task_id"], {"task_id": body["task_id"]})
         task["status"] = HUMAN_ACTIONS[event.type]
         task["actor"] = event.actor
+        if event.type == "task_escalated":
+            # Escalation moves the work, it does not close it: the task leaves
+            # the owner's queue and becomes an expert item with its own reason.
+            task["queue"] = "expert"
+            task["assignee"] = EXPERT
+            task["reason"] = ESCALATED_BY_REVIEWER
         if event.type == "task_edited":
             _record_override(state, body)
         if event.type in ACCEPTING:
