@@ -91,6 +91,32 @@ def _overlaps(start: int, end: int, spans: list) -> bool:
     return any(start < span_end and end > span_start for span_start, span_end in spans)
 
 
+def find_quote(quote: str, text: str) -> tuple[str, int | None, int | None, int | None]:
+    """Search for a quote in a passage, with no change record involved.
+
+    Returns (status, start, end, distance) with offsets in the original text.
+    Status is verified on an exact find, near within the length-scaled
+    threshold, rejected otherwise. This is the search half of verify_claim, and
+    mapping.py uses it to check a rationale quote against an obligation's text.
+    """
+    source, offsets = normalize(text)
+    needle, _ = normalize(quote)
+    if not needle:
+        return "rejected", None, None, None
+
+    position = source.find(needle)
+    if position >= 0:
+        start, end, distance, status = position, position + len(needle), 0, "verified"
+    else:
+        best = _best_window(source, needle, threshold(needle))
+        if best is None:
+            return "rejected", None, None, None
+        start, distance = best
+        end = min(start + len(needle), len(source))
+        status = "near"
+    return status, offsets[start], offsets[min(end, len(source))], distance
+
+
 def verify_claim(claim, paragraphs: dict, change) -> Verification:
     """Verify one claim's quote against the source text (TDD 3.4).
 
@@ -107,26 +133,15 @@ def verify_claim(claim, paragraphs: dict, change) -> Verification:
         )
 
     spans = sides[claim.quote_para_id]
-    source, offsets = normalize(paragraphs[claim.quote_para_id])
-    quote, _ = normalize(claim.quote)
 
-    # 2. Exact match.
-    position = source.find(quote)
-    if position >= 0:
-        start, end, distance = position, position + len(quote), 0
-        status = "verified"
-    else:
-        # 3. Sliding-window Levenshtein within the length-scaled threshold.
-        best = _best_window(source, quote, threshold(quote))
-        if best is None:
-            return Verification(
-                claim_id=claim.claim_id, status="rejected", reason="quote_not_found"
-            )
-        start, distance = best
-        end = min(start + len(quote), len(source))
-        status = "near"
-
-    match_start, match_end = offsets[start], offsets[min(end, len(source))]
+    # 2 and 3. Normalize, exact find, then sliding-window Levenshtein.
+    status, match_start, match_end, distance = find_quote(
+        claim.quote, paragraphs[claim.quote_para_id]
+    )
+    if status == "rejected":
+        return Verification(
+            claim_id=claim.claim_id, status="rejected", reason="quote_not_found"
+        )
 
     # 4. The match must overlap the span the diff identified as changed.
     if not _overlaps(match_start, match_end, spans):

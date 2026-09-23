@@ -238,3 +238,42 @@ and OBL-4 for the same change CH-7, so propagation returns them twice with diffe
 paths. That is correct here: each Impact records the obligation it came from. Task 10
 must create one task per reached node, not one per impact, or CH-7 produces duplicate
 work for the same owner.
+
+## Task 9: mapping
+
+**`verify.find_quote` extracted, not duplicated.** The rationale quote has to be checked
+against an obligation's text, where there is no paragraph and no change record, so the
+search half of `verify_claim` is now `find_quote(quote, text) -> (status, start, end,
+distance)` and `verify_claim` calls it. Copying the normalize-and-search logic into
+mapping would have let the two drift, and the verifier's behaviour is the product's
+main claim; there is one implementation of it.
+
+**An unknown obligation_id is dropped, not raised.** A response naming OBL-999
+alongside a good link should not discard the good link, and the run should not fail:
+this is one claim out of dozens in a pipeline pass. It is logged with the claim ID and
+the candidate count so the eval run shows it. Raising would turn a model slip into a
+pipeline crash; silently ignoring it would hide a prompt regression.
+
+**A failed rationale quote does not drop the link.** `rationale_status` records
+verified, near or rejected and the link survives. The rationale is review material, not
+a gate: the link itself may well be right while the quote supporting it was invented,
+and that combination is exactly what a reviewer should see. The confidence threshold in
+task 10 is the gate.
+
+**Prompt licenses an empty answer.** The failure mode here is forcing a link to the
+closest-looking obligation, which for CH-8 (a new penalty duty with no matching node)
+would silently attach a new obligation to an unrelated existing one instead of
+escalating. The prompt says an empty list is a correct answer and that a shared number
+is not a match: OBL-2 and OBL-7 both contain "thirty (30) days" and sit next to CH-7's
+"thirty (30) business days". A test asserts those two are still the distractors, so if
+the data changed the prompt gets revisited.
+
+**Failure: a test of my own making.** `test_find_quote_needs_no_change_record` asserted
+a trailing-period quote would be `near`, but the sample text I wrote ended in "days."
+so the quote matched exactly and returned `verified`. The test was wrong, not the code;
+the sample text now continues past the quote.
+
+**Fixtures.** Two hand-written mapping fixtures, one per CH-7 claim, k1 to OBL-3 and k2
+to OBL-4, so the union satisfies PRD R3.4. The generator asserts each rationale quote
+appears verbatim in its obligation's text before writing. Both are marked hand-written
+and are replaced in task 13.
