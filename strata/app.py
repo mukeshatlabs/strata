@@ -129,6 +129,10 @@ def queue(request: Request, project_id: str):
     )
     return templates.TemplateResponse(request, "queue.html", {
         "project_id": project_id, "state": state, "items": items, "people": people,
+        # The form is prefilled with the obligation make live created, so the
+        # default path through the UI produces the same v3 mapping prompts that
+        # the committed cache holds (see NOTES, task 15).
+        "suggested": pipeline.OBL_12,
     })
 
 

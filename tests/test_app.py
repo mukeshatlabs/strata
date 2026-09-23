@@ -233,3 +233,53 @@ def test_review_page_has_the_load_next_version_button(client):
     body = client.get(f"/projects/{PROJECT}/review").text
     assert "Load next version" in body
     assert 'name="version_id"' in body
+
+
+def _form_defaults(html_text: str) -> dict:
+    """Read the create-obligation form's prefilled values out of the page."""
+    import re
+
+    form = html_text[html_text.index("create-obligation"):]
+    form = form[: form.index("</form>")]
+    text = re.search(r"<textarea[^>]*>(.*?)</textarea>", form, re.S).group(1).strip()
+    flat = " ".join(form.split())  # the markup wraps; assertions should not care
+    data = dict(re.findall(r'<input name="(\w+)"[^>]*?value="([^"]*)"', flat))
+    data["text"] = text
+    data["owner"] = re.search(r'<option value="(P-\d+)"[^>]*selected', flat).group(1)
+    return data
+
+
+def test_create_obligation_form_is_prefilled(client):
+    data = _form_defaults(client.get(f"/projects/{PROJECT}/queue").text)
+    assert data["node_id"] == pipeline.OBL_12["id"]
+    assert data["name"] == pipeline.OBL_12["name"]
+    assert data["text"] == pipeline.OBL_12["text"]
+    assert data["owner"] == pipeline.OBL_12["owner"]
+    assert data["source_para"] == pipeline.OBL_12["source_para"]
+
+
+def test_prefilled_form_then_next_version_runs_without_a_key(client, monkeypatch):
+    """Accepting the defaults keeps the whole journey on the committed cache."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    conn = db.connect(app_module.DB_PATH)
+    task = next(t for t in events.replay(conn, PROJECT).open_tasks()
+                if t.get("reason") == "new_obligation")
+    conn.close()
+
+    data = _form_defaults(client.get(f"/projects/{PROJECT}/queue").text)
+    posted = client.post(f"/tasks/{task['task_id']}/create-obligation", data=data,
+                         follow_redirects=False)
+    assert posted.status_code in (302, 303, 307)
+
+    loaded = client.post(f"/projects/{PROJECT}/versions", data={"version_id": "v3"},
+                         follow_redirects=False)
+    assert loaded.status_code in (302, 303, 307), "v3 must run from cache"
+
+    conn = db.connect(app_module.DB_PATH)
+    state = events.replay(conn, PROJECT)
+    assert any(c["change_id"].startswith("c:v2->v3") for c in state.claims.values())
+    assert "OBL-12" in {n["id"] for n in state.created_nodes}
+    conn.close()
+
+    assert client.get(f"/projects/{PROJECT}/review").status_code == 200

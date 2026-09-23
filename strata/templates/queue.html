@@ -27,19 +27,26 @@
 
   {% if item.task.reason == 'new_obligation' and item.task.status == 'open' %}
   <form method="post" action="/tasks/{{ item.task.task_id }}/create-obligation">
-    <p class="meta">Create the obligation this change introduces:</p>
+    <p class="meta">Create the obligation this change introduces. The fields are
+      prefilled with the values the recorded run used; editing them is fine, but
+      the next version then needs an API key rather than the cache.</p>
     <table>
-      <tr><th>ID</th><td><input name="node_id" value="OBL-12" required></td></tr>
-      <tr><th>Name</th><td><input name="name" size="50" required></td></tr>
-      <tr><th>Text</th><td><textarea name="text" rows="2" cols="60"></textarea></td></tr>
+      <tr><th>ID</th><td>
+        <input name="node_id" value="{{ suggested.id }}" required></td></tr>
+      <tr><th>Name</th><td>
+        <input name="name" size="50" value="{{ suggested.name }}" required></td></tr>
+      <tr><th>Text</th><td>
+        <textarea name="text" rows="3" cols="60">{{ suggested.text }}</textarea></td></tr>
       <tr><th>Owner</th><td>
         <select name="owner" required>
           {% for person in people %}
-          <option value="{{ person.node_id }}">{{ person.node_id }} — {{ person.name }}</option>
+          <option value="{{ person.node_id }}"
+            {{ 'selected' if person.node_id == suggested.owner }}>{{ person.node_id }} — {{ person.name }}</option>
           {% endfor %}
         </select></td></tr>
       <tr><th>Source paragraph</th>
-          <td><input name="source_para" value="{{ item.source_para }}"></td></tr>
+          <td><input name="source_para"
+            value="{{ item.source_para or suggested.source_para }}"></td></tr>
     </table>
     <button class="primary" type="submit">Create obligation and resolve</button>
   </form>
