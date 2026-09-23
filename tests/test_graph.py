@@ -28,7 +28,14 @@ def conn():
 
 @pytest.fixture(scope="module")
 def g(conn):
-    return graph.load(conn, [])
+    """The graph as the gold impacts rows describe it: after v2 review.
+
+    IM-5 covers OBL-12 and the implements edge an expert added when resolving
+    the new-obligation item, so both events are applied here. They add an edge
+    arriving at OBL-12 only, and so change no other row.
+    """
+    return graph.load(conn, [new_obligation_event(),
+                             new_edge_event("DOC-1", "OBL-12", "implements")])
 
 
 def by_node(impacts):
@@ -84,10 +91,17 @@ def test_one_hop_impacts_carry_their_edge_type(g):
     assert impacts["PRJ-1"].owner == "P-2"
 
 
-def test_im5_obligation_with_no_edges_has_no_impacts(conn):
-    """A node created during review has no edges yet."""
-    g = graph.load(conn, [new_obligation_event()])
-    assert graph.propagate(g, "OBL-12") == []
+def test_a_created_node_with_no_edges_has_no_impacts(conn):
+    """Before an expert links it, a created obligation reaches nothing."""
+    bare = graph.load(conn, [new_obligation_event()])
+    assert graph.propagate(bare, "OBL-12") == []
+
+
+def test_im5_reaches_the_document_through_the_edge_an_expert_added(g):
+    impacts = by_node(graph.propagate(g, "OBL-12"))
+    assert set(impacts) == {"DOC-1"}
+    assert impacts["DOC-1"].path == ["OBL-12", "DOC-1"]
+    assert impacts["DOC-1"].edge_types == ["implements"]
 
 
 @pytest.mark.parametrize("row", NOT_IMPACTED, ids=[r["id"] for r in NOT_IMPACTED])
