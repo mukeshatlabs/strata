@@ -843,3 +843,22 @@ directory of the listening pid settle it in one line. And the failure was silent
 worst way, because the wrong answer looked better than the right one: the stale server
 had more state, so the page looked more complete. Re-run on a free port when the check
 is not the only thing on the machine.
+
+## Post-build: the fallback create form starts at the next free id
+
+Once an obligation exists and the queue offers linking, the create form is no longer
+the default path: it is the escape hatch for a duty an expert has judged genuinely
+separate. It was still prefilled with the obligation that already existed, so accepting
+its defaults wrote a second `node_created` for the same id. The form now opens at the
+next unused number with name and text empty, so it cannot be submitted as a duplicate
+by accident and has to be filled in deliberately.
+
+`next_obligation_id` counts every obligation id that has ever appeared, including ones
+created by an event that a later rollback made ineffective, rather than only those in
+the current graph. Handing back a number a rolled-back node once held would put two
+different duties under one id in the history, and the log is the artefact that has to
+stay readable. A test rolls a created obligation away and asserts the next id is still
+OBL-13, not OBL-12.
+
+The first item, with nothing created yet, keeps the recorded prefill, because that is
+the path the committed cache depends on.

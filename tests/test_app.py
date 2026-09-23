@@ -831,3 +831,75 @@ def test_an_unknown_task_never_appears_in_replayed_state(client):
     conn = db.connect(app_module.DB_PATH)
     assert UNKNOWN not in events.replay(conn, PROJECT).tasks
     conn.close()
+
+
+# --- fallback create form uses the next free id ---
+
+
+def test_fallback_create_form_starts_empty_at_the_next_free_id(client):
+    """Once linking is on offer, creating is for a separate duty, not a repeat."""
+    conn = db.connect(app_module.DB_PATH)
+    first = next(t for t in events.replay(conn, PROJECT).open_tasks()
+                 if t.get("reason") == "new_obligation")
+    conn.close()
+    client.post(f"/tasks/{first['task_id']}/create-obligation", data={
+        "node_id": pipeline.OBL_12["id"], "name": pipeline.OBL_12["name"],
+        "text": pipeline.OBL_12["text"], "owner": pipeline.OBL_12["owner"],
+        "source_para": pipeline.OBL_12["source_para"],
+    })
+
+    data = _form_defaults(client.get(f"/projects/{PROJECT}/queue").text)
+    assert data["node_id"] == "OBL-13", "next free number, not the one that exists"
+    assert data["name"] == ""
+    assert data["text"] == ""
+
+
+def test_posting_the_fallback_defaults_makes_no_duplicate_id(client):
+    conn = db.connect(app_module.DB_PATH)
+    tasks = [t for t in events.replay(conn, PROJECT).open_tasks()
+             if t.get("reason") == "new_obligation"]
+    conn.close()
+    client.post(f"/tasks/{tasks[0]['task_id']}/create-obligation", data={
+        "node_id": pipeline.OBL_12["id"], "name": pipeline.OBL_12["name"],
+        "text": pipeline.OBL_12["text"], "owner": pipeline.OBL_12["owner"],
+        "source_para": pipeline.OBL_12["source_para"],
+    })
+
+    data = _form_defaults(client.get(f"/projects/{PROJECT}/queue").text)
+    data["name"] = "Separate duty an expert judged distinct"
+    r = client.post(f"/tasks/{tasks[1]['task_id']}/create-obligation", data=data,
+                    follow_redirects=False)
+    assert r.status_code in (302, 303, 307)
+
+    conn = db.connect(app_module.DB_PATH)
+    created = [n["id"] for n in events.replay(conn, PROJECT).created_nodes]
+    conn.close()
+    assert created == ["OBL-12", "OBL-13"], f"duplicate id: {created}"
+    assert len(created) == len(set(created))
+
+
+def test_next_free_id_skips_a_number_a_rollback_freed(client):
+    """An id that existed and was rolled back is not handed out again."""
+    conn = db.connect(app_module.DB_PATH)
+    task = next(t for t in events.replay(conn, PROJECT).open_tasks()
+                if t.get("reason") == "new_obligation")
+    before = events.replay(conn, PROJECT).last_seq
+    conn.close()
+
+    client.post(f"/tasks/{task['task_id']}/create-obligation", data={
+        "node_id": "OBL-12", "name": "n", "text": "", "owner": "P-2",
+        "source_para": "v2:p17",
+    })
+    client.post(f"/projects/{PROJECT}/rollback", data={"to_seq": before})
+
+    conn = db.connect(app_module.DB_PATH)
+    assert events.replay(conn, PROJECT).created_nodes == [], "rollback dropped it"
+    assert app_module.next_obligation_id(conn, PROJECT) == "OBL-13"
+    conn.close()
+
+
+def test_first_item_still_prefills_the_recorded_obligation(client):
+    """With nothing created yet there is no link option, so the prefill stands."""
+    data = _form_defaults(client.get(f"/projects/{PROJECT}/queue").text)
+    assert data["node_id"] == pipeline.OBL_12["id"]
+    assert data["name"] == pipeline.OBL_12["name"]

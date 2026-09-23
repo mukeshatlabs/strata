@@ -298,6 +298,28 @@ def home():
     return RedirectResponse(f"/projects/{PROJECT}/review", status_code=307)
 
 
+def next_obligation_id(conn, project_id: str) -> str:
+    """The next unused OBL number.
+
+    Counts every obligation id that has ever existed, including ones created by
+    an event that a later rollback made ineffective. Reusing a number a
+    rolled-back node once held would make two different duties share an id in
+    the history, and the log is the thing that has to stay readable.
+    """
+    numbers = [
+        int(row["node_id"].split("-")[1])
+        for row in conn.execute("select node_id from nodes where type='obligation'")
+        if row["node_id"].startswith("OBL-") and row["node_id"].split("-")[1].isdigit()
+    ]
+    for event in events.history(conn, project_id):
+        if event.type != "node_created":
+            continue
+        node_id = str(event.payload.get("id", ""))
+        if node_id.startswith("OBL-") and node_id.split("-")[1].isdigit():
+            numbers.append(int(node_id.split("-")[1]))
+    return f"OBL-{max(numbers, default=0) + 1}"
+
+
 def company_name() -> str:
     """The company's display name, from the graph file rather than a constant."""
     import json
@@ -382,6 +404,10 @@ def queue(request: Request, project_id: str):
     return templates.TemplateResponse(request, "queue.html", {
         **_layout(conn, project_id, state),
         "items": items, "people": people, "created": created,
+        # When linking is on offer, the create form is the fallback for a
+        # genuinely separate duty, so it starts empty at the next free id
+        # rather than repeating the obligation that already exists.
+        "fallback_id": next_obligation_id(conn, project_id),
         # The form is prefilled with the obligation make live created, so the
         # default path through the UI produces the same v3 mapping prompts that
         # the committed cache holds (see NOTES, task 15).
