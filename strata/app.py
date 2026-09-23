@@ -39,6 +39,15 @@ def _changes(conn) -> dict:
     return found
 
 
+def _order(change) -> tuple:
+    """Sort key: newest version pair first, then paragraph order within it."""
+    if change is None:
+        return (0, 0)
+    to_number = int(change.to_version.lstrip("v"))
+    para = change.para_id_to or change.para_id_from or ":p0"
+    return (-to_number, int(para.split(":p")[1]))
+
+
 def _next_version(conn, state) -> str | None:
     """The next version to load, or None when every version has been run."""
     done = {c["change_id"].split(":")[1].split("->")[1]
@@ -86,7 +95,16 @@ def review_items(conn, state, changes) -> list[dict]:
 
     for item in grouped.values():
         item["tasks"].sort(key=lambda t: (t.get("queue", ""), t.get("node_id") or ""))
-    return list(grouped.values())
+        change = item["change"]
+        item["pair"] = (
+            f"{change.from_version} to {change.to_version}" if change else "unknown"
+        )
+        item["order"] = _order(change)
+
+    # Newest version pair first: what the version you just loaded changed is the
+    # reason you are on this page, and appending it below the previous pair put
+    # it off the bottom of the screen.
+    return sorted(grouped.values(), key=lambda i: i["order"])
 
 
 def _render(request, template, **context):

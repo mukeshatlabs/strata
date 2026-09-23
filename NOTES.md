@@ -729,3 +729,26 @@ duties and that is the expert's call to make, not the tool's.
 first, link on the rest. `test_linking_resolves_without_a_second_node` asserts exactly
 one `created_nodes` entry, and `test_link_then_next_version_runs_from_cache` asserts the
 303, so the tightening is pinned by the property it exists for.
+
+## Post-build: the review page did not visibly change after loading v3
+
+Reported from the running app: processing v3 appeared to do nothing. It had worked, and
+the counts in the subheading had moved from 14 changes and 6 owner tasks to 27 and 14,
+but the 13 new v2 to v3 sections were appended *below* the 14 v1 to v2 sections. The top
+of the screen was byte-identical, so the only visible evidence on load was a one-line
+count and the disappearance of a button.
+
+Changes are now ordered newest version pair first, paragraph order within a pair, and
+each pair carries a heading. What the version you just loaded changed is the reason you
+are on the page.
+
+The lesson is about what a test asserts. `test_load_next_version_runs_the_pipeline`
+checked that the task count grew, which was true and useless: the work was done and the
+user could not see it. Correctness of state is not the same as visibility of state, and
+only the second one is what the review center is for. The new tests assert ordering and
+the pair headings rather than counts.
+
+A test bug on the way: the within-pair ordering assertion split a change id on ":p" to
+read the paragraph number, which fails on a removal, whose id is `c:v2->v3:-p14`. The
+application code was never affected, because `_order` reads the paragraph id, which
+carries no marker.

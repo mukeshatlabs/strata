@@ -37,7 +37,14 @@
 <p class="sub">Every version has been loaded.</p>
 {% endif %}
 
+{% set ns = namespace(pair=None) %}
 {% for item in items %}
+{% if item.pair != ns.pair %}
+  {% set ns.pair = item.pair %}
+  <h3 class="pair">{{ item.pair }}
+    <span class="meta">{{ items|selectattr('pair', 'equalto', item.pair)|list|length }}
+      changes with claims</span></h3>
+{% endif %}
 <section class="change">
   <h2>{{ item.change_id }}</h2>
   <p class="meta">

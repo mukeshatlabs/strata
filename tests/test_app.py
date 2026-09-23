@@ -408,3 +408,44 @@ def test_link_then_next_version_runs_from_cache(client, monkeypatch):
     r = client.post(f"/projects/{PROJECT}/versions", data={"version_id": "v3"},
                     follow_redirects=False)
     assert r.status_code == 303, "linking must keep the obligation list the cache assumes"
+
+
+def test_review_orders_the_newest_version_pair_first(client, monkeypatch):
+    """After loading v3, its changes must be at the top, not appended below v2's."""
+    import re
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    _resolve_new_obligation_items(client)
+    assert client.post(f"/projects/{PROJECT}/versions", data={"version_id": "v3"},
+                       follow_redirects=False).status_code == 303
+
+    body = client.get(f"/projects/{PROJECT}/review").text
+    ids = [i.replace("&gt;", ">") for i in re.findall(r"<h2>(c:[^<]+)</h2>", body)]
+    pairs = [i.split(":")[1] for i in ids]
+    assert pairs[0] == "v2->v3", f"newest pair must lead, got {pairs[0]}"
+    assert pairs[-1] == "v1->v2"
+    assert pairs == sorted(pairs, reverse=True), "pairs must not interleave"
+
+    # A removal's id carries a marker, c:v2->v3:-p14, so read the trailing number.
+    def para_number(change_id):
+        return int(re.search(r"p(\d+)$", change_id).group(1))
+
+    first = [i for i in ids if i.startswith("c:v2->v3")]
+    assert first == sorted(first, key=para_number), "within a pair, paragraph order"
+
+
+def test_review_labels_each_version_pair(client, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    _resolve_new_obligation_items(client)
+    client.post(f"/projects/{PROJECT}/versions", data={"version_id": "v3"})
+
+    body = client.get(f"/projects/{PROJECT}/review").text
+    assert "v2 to v3" in body
+    assert "v1 to v2" in body
+    assert body.index("v2 to v3") < body.index("v1 to v2")
+
+
+def test_a_single_pair_still_renders_one_heading(client):
+    body = client.get(f"/projects/{PROJECT}/review").text
+    assert body.count('class="pair"') == 1
+    assert "v1 to v2" in body
