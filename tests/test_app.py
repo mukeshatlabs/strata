@@ -769,3 +769,65 @@ def test_version_page_is_reachable_from_a_rejected_citation(client, monkeypatch)
     _load_v3(client)
     body = client.get(f"/projects/{PROJECT}/queue").text
     assert f'href="/projects/{PROJECT}/versions/' in body
+
+
+# --- unknown task ids (found by the fresh-clone check) ---
+
+
+UNKNOWN = "c:v1-&gt;v2:+p17:k1:expert"  # the html-escaped form, as a URL would carry it
+
+
+def _log_length(path=None):
+    conn = db.connect(app_module.DB_PATH)
+    count = len(events.history(conn, PROJECT))
+    conn.close()
+    return count
+
+
+def test_approve_unknown_task_is_404_and_writes_nothing(client):
+    before = _log_length()
+    assert client.post(f"/tasks/{UNKNOWN}/approve").status_code == 404
+    assert _log_length() == before
+
+
+def test_escalate_unknown_task_is_404_and_writes_nothing(client):
+    before = _log_length()
+    assert client.post(f"/tasks/{UNKNOWN}/escalate").status_code == 404
+    assert _log_length() == before
+
+
+def test_edit_unknown_task_is_404_and_writes_nothing(client):
+    before = _log_length()
+    r = client.post(f"/tasks/{UNKNOWN}/edit", data={"obligation_id": "OBL-5"})
+    assert r.status_code == 404
+    assert _log_length() == before
+
+
+def test_create_obligation_unknown_task_is_404_and_writes_nothing(client):
+    """The one that mattered: it created the node before the task was checked."""
+    before = _log_length()
+    r = client.post(f"/tasks/{UNKNOWN}/create-obligation", data={
+        "node_id": "OBL-99", "name": "Invented", "text": "", "owner": "P-2",
+        "source_para": "v2:p17",
+    })
+    assert r.status_code == 404
+    assert _log_length() == before
+
+    conn = db.connect(app_module.DB_PATH)
+    assert "OBL-99" not in {n["id"] for n in events.replay(conn, PROJECT).created_nodes}
+    conn.close()
+
+
+def test_link_obligation_unknown_task_is_404_and_writes_nothing(client):
+    before = _log_length()
+    r = client.post(f"/tasks/{UNKNOWN}/link-obligation",
+                    data={"obligation_id": "OBL-12"})
+    assert r.status_code == 404
+    assert _log_length() == before
+
+
+def test_an_unknown_task_never_appears_in_replayed_state(client):
+    client.post(f"/tasks/{UNKNOWN}/approve")
+    conn = db.connect(app_module.DB_PATH)
+    assert UNKNOWN not in events.replay(conn, PROJECT).tasks
+    conn.close()

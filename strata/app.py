@@ -485,8 +485,17 @@ def _append(conn, project_id, type, subject_id, payload, actor="dana"):
 
 
 def _task(conn, task_id):
+    """Return the task with this id, or 404. Never invents one.
+
+    Every route below writes an event about the task it was given. Defaulting to
+    an empty task on a miss meant an unknown id appended an event anyway, and a
+    replay then showed a task that the pipeline never created.
+    """
     state = events.replay(conn, PROJECT)
-    return state.tasks.get(task_id, {"task_id": task_id}), state
+    task = state.tasks.get(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail=f"no task {task_id!r}")
+    return task, state
 
 
 @app.post("/tasks/{task_id}/approve")

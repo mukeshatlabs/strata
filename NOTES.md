@@ -812,3 +812,34 @@ and its queue link and count moved into the next-step line, so there is one sent
 telling you what to do rather than two. The two tests that pinned the old wording were
 updated, not deleted: they now assert the single warning and that the next step moves on
 to "expert queue is clear" once the items are resolved.
+
+## Post-build: 404 on an unknown task id, and a port-conflict false pass
+
+**The bug.** `_task` returned `{"task_id": task_id}` when the id was not in replayed
+state, so every mutating route appended its event anyway. `POST
+/tasks/{anything}/approve` returned 303 and put a task in the log that the pipeline
+never created, and `create-obligation` wrote the `node_created` event before the task
+was ever looked at, so an unknown id could add an obligation to the graph. All five
+routes now 404 and write nothing. `link-obligation` was not in the report but has the
+same hole, so it is fixed with the other four.
+
+**How it was found, which is the part worth keeping.** Not by a test and not by reading:
+by a bug in the fresh-clone harness. Task ids render html-escaped, `c:v1-&gt;v2:+p17:k1:expert`,
+and the check posted the escaped string as a URL. The app answered 303, the journey
+appeared to work, and the real expert items stayed open. The tests now use that exact
+escaped string as the unknown id.
+
+**The port-conflict false pass.** The first pass of that same fresh-clone check reported
+six routes returning 200 and a correct-looking review page. All six requests had gone to
+a *different server*: a `make run` left over in the main repo was already holding
+port 8000, the clone's `make run` died with `[Errno 48] Address already in use`, and
+`curl localhost:8000` answered from the wrong working directory. The tell was that the
+page showed v2 to v3 content, which a fresh bootstrap cannot produce, so the numbers
+disagreed with the step that had just run.
+
+Two things follow. A check that fetches a fixed port proves nothing unless it also
+confirms *which* process answered; `lsof -nP -iTCP:8000 -sTCP:LISTEN` and the working
+directory of the listening pid settle it in one line. And the failure was silent in the
+worst way, because the wrong answer looked better than the right one: the stale server
+had more state, so the page looked more complete. Re-run on a free port when the check
+is not the only thing on the machine.
