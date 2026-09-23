@@ -1,0 +1,84 @@
+{# One change: its claims as evidence, then the merged tasks. #}
+<section class="change">
+  <h2>{{ item.change_id }}</h2>
+  <p class="meta">
+    {{ item.kind }} &middot;
+    {{ item.from_para or '—' }} &rarr; {{ item.to_para or '—' }}
+  </p>
+
+  {% for entry in item.claims %}
+  <div class="claim">
+    <strong>{{ entry.claim.summary }}</strong>
+    <p class="meta">
+      obligation change: {{ entry.claim.obligation_change }} &middot;
+      material: {{ entry.claim.material }} &middot;
+      version status: {{ entry.claim.version_status }} &middot;
+      model confidence {{ '%.2f'|format(entry.claim.model_confidence) }}
+    </p>
+
+    <blockquote>
+      &ldquo;{{ entry.claim.quote }}&rdquo;
+      <br>
+      <span class="badge {{ entry.verification.status }}">{{ entry.verification.status }}</span>
+      <span class="meta">
+        {{ entry.claim.quote_para_id }}
+        {% if entry.verification.status == 'near' %}
+          &middot; edit distance {{ entry.verification.edit_distance }}
+        {% elif entry.verification.status == 'rejected' %}
+          &middot; {{ entry.verification.reason }}
+        {% else %}
+          &middot; exact match at {{ entry.verification.match_start }}
+        {% endif %}
+      </span>
+    </blockquote>
+
+    {% if entry.links %}
+    <p class="meta">linked obligations:
+      {% for link in entry.links %}
+        {{ link.obligation_id }} ({{ '%.2f'|format(link.confidence) }},
+        rationale {{ link.rationale_status }}){% if not loop.last %} &middot; {% endif %}
+      {% endfor %}
+    </p>
+    {% endif %}
+
+  </div>
+  {% endfor %}
+
+  {% if item.tasks %}
+  <table>
+      <tr><th>Node</th><th>Impact paths</th><th>Recommended action</th>
+          <th>Assignee</th><th>Status</th><th></th></tr>
+      {% for task in item.tasks %}
+      <tr class="{{ 'done' if task.status != 'open' }}">
+        <td>
+          <strong>{{ task.node_id or 'escalated' }}</strong>
+        {% if task.node_type %}<br><span class="meta">{{ task.node_type }}</span>{% endif %}
+        </td>
+        <td class="path">
+          {% for path in task.paths %}{{ path|join(' &rarr; ')|safe }}<br>{% endfor %}
+        {% if task.reason %}<span class="meta">reason: {{ task.reason }}</span>{% endif %}
+        </td>
+        <td>{{ task.recommended_action }}</td>
+        <td>{{ task.assignee or '—' }}</td>
+        <td>{{ task.status }}</td>
+        <td>
+        {% if task.status == 'open' %}
+          <form class="inline" method="post" action="/tasks/{{ task.task_id }}/approve">
+            <button type="submit">approve</button>
+          </form>
+          <form class="inline" method="post" action="/tasks/{{ task.task_id }}/edit">
+            <input name="obligation_id" size="7" placeholder="OBL-5" required>
+            <button type="submit">edit</button>
+          </form>
+          <form class="inline" method="post" action="/tasks/{{ task.task_id }}/escalate">
+            <button type="submit">escalate</button>
+          </form>
+        {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+  </table>
+  {% else %}
+  <p class="meta">no tasks: {{ item.no_task_reason }}</p>
+  {% endif %}
+</section>

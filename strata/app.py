@@ -5,6 +5,7 @@ and what the audit trail says can never disagree. There is no JavaScript beyond
 form submission, and no client-side state.
 """
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
@@ -12,14 +13,31 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from . import db, diff, events, graph, ingest, llm, pipeline
-from .models import Event
+from .models import COMPANY_ID, Event
 
+COMPANY_FILE = Path("data/company/meridian.json")
 DB_PATH = "strata.db"
 PROJECT = "proj-1"
 VERSIONS = ("v1", "v2", "v3")
 
 app = FastAPI(title="Strata")
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+
+HUMAN_EVENTS = {"task_approved", "task_edited", "task_escalated", "node_created"}
+STATUS_WORDS = {"proposed": "proposed", "revised_proposed": "revised proposed",
+                "final": "final"}
+
+
+@dataclass(frozen=True)
+class Paragraph:
+    """One version pair's worth of orientation (TDD 6.2)."""
+
+    pair: str
+    heading: str
+    sentences: list[str]
+    next_step: str | None = None
+    about_link: bool = False
 
 
 def connect():
@@ -37,6 +55,133 @@ def _changes(conn) -> dict:
         for change in diff.diff_versions(conn, a, b):
             found[change.change_id] = change
     return found
+
+
+def versions_view(conn, state) -> list[dict]:
+    """Every ingested version with what has been done to it (TDD 6.1)."""
+    processed = {}
+    for claim in state.claims.values():
+        change_id = claim.get("change_id") or ""
+        if "->" not in change_id:
+            continue
+        to_version = change_id.split(":")[1].split("->")[1]
+        processed.setdefault(to_version, set()).add(change_id)
+
+    rows = []
+    for row in conn.execute("select * from versions order by number"):
+        version_id = row["version_id"]
+        changes = len(processed.get(version_id, ()))
+        if row["number"] == 1:
+            status, loadable = "baseline", False
+        elif changes:
+            status, loadable = "processed", False
+        else:
+            status, loadable = "not yet loaded", True
+        rows.append({
+            "version_id": version_id, "number": row["number"],
+            "doc_status": STATUS_WORDS.get(row["status"], row["status"]),
+            "issued": row["issued"], "effective": row["effective"],
+            "status": status, "changes": changes, "loadable": loadable,
+        })
+    # Only the earliest unloaded version can be loaded next.
+    seen_loadable = False
+    for row in rows:
+        if row["loadable"] and not seen_loadable:
+            seen_loadable = True
+        elif row["loadable"]:
+            row["loadable"] = False
+    return rows
+
+
+def _pair_facts(state, to_version: str) -> dict:
+    """Counts for one version pair, all read from project state."""
+    claims = [c for c in state.claims.values()
+              if f"->{to_version}:" in (c.get("change_id") or "")]
+    changes = {c["change_id"] for c in claims}
+    material = {c["change_id"] for c in claims if c.get("material")}
+    claim_ids = {c["claim_id"] for c in claims}
+    tasks = [t for t in state.tasks.values() if t.get("claim_id") in claim_ids]
+    rejected = [v for k, v in state.verifications.items()
+                if k in claim_ids and v.get("status") == "rejected"]
+    return {
+        "changes": len(changes), "material": len(material),
+        "owner": len({t["task_id"] for t in tasks if t.get("queue") == "owner"}),
+        "expert": len({t["task_id"] for t in tasks if t.get("queue") == "expert"}),
+        "rejected": len(rejected),
+        "status": _majority_status(claims),
+    }
+
+
+def _majority_status(claims) -> str | None:
+    """The version status the claims voted for, or None when there are no votes."""
+    votes: dict[str, int] = {}
+    for claim in claims:
+        status = claim.get("version_status")
+        if status:
+            votes[status] = votes.get(status, 0) + 1
+    return max(votes, key=votes.get) if votes else None
+
+
+def _next_step(state, versions) -> str:
+    """The one thing to do next, by the rules in TDD 6.2."""
+    blocking = [t for t in state.tasks.values()
+                if t.get("reason") == "new_obligation" and t.get("status") == "open"]
+    if blocking:
+        return ("Start with the expert queue: a new obligation must be created before"
+                " the next version is loaded.")
+    unloaded = [v for v in versions if v["status"] == "not yet loaded"]
+    if unloaded:
+        return (f"The expert queue is clear. Version {unloaded[0]['number']} is ready"
+                " to load.")
+    return "Every version has been loaded."
+
+
+def orientation(state, versions) -> list[Paragraph]:
+    """One paragraph per processed version pair, newest first (PRD R4.6, TDD 6.2).
+
+    Everything here is computed from project state and the versions table. No
+    sentence is written per version, so a fourth version file would produce a
+    correct banner with no template change.
+    """
+    by_id = {v["version_id"]: v for v in versions}
+    processed = [v for v in versions if v["status"] == "processed"]
+    first_visit = not any(
+        t.get("status") in ("approved", "edited", "escalated")
+        for t in state.tasks.values()
+    ) and not state.created_nodes
+
+    paragraphs = []
+    for index, version in enumerate(reversed(processed)):
+        facts = _pair_facts(state, version["version_id"])
+        previous = by_id.get(f"v{version['number'] - 1}")
+        heading = (
+            f"Version {version['number']}, {version['doc_status']}, issued"
+            f" {version['issued']}, compared against version"
+            f" {previous['number'] if previous else version['number'] - 1}."
+        )
+        sentences = [
+            f"{facts['changes']} paragraphs changed, {facts['material']} of them"
+            f" material.",
+            f"{facts['owner']} task(s) went to owners and {facts['expert']} to the"
+            f" expert queue.",
+        ]
+        if facts["rejected"]:
+            sentences.append(
+                f"{facts['rejected']} citation(s) did not verify and were held back"
+                " for an expert."
+            )
+        else:
+            sentences.append("Every citation verified against the source text.")
+        if facts["status"] == "final":
+            sentences.append("The rule is now final.")
+        paragraphs.append(Paragraph(
+            pair=f"v{version['number'] - 1} to {version['version_id']}",
+            heading=heading,
+            sentences=sentences,
+            next_step=_next_step(state, versions) if index == 0 else None,
+            about_link=first_visit and index == 0,
+        ))
+    return paragraphs
 
 
 def _order(change) -> tuple:
@@ -101,10 +246,42 @@ def review_items(conn, state, changes) -> list[dict]:
         )
         item["order"] = _order(change)
 
+        item["material"] = any(c["claim"].get("material") for c in item["claims"])
+        item["no_task_reason"] = (
+            "not material" if not item["material"] else "no downstream nodes"
+        )
+
     # Newest version pair first: what the version you just loaded changed is the
     # reason you are on this page, and appending it below the previous pair put
     # it off the bottom of the screen.
     return sorted(grouped.values(), key=lambda i: i["order"])
+
+
+def by_pair(items) -> list[dict]:
+    """Group review items by version pair, material changes before the rest.
+
+    Non-material changes are collapsed behind one summary line (TDD 6.3), with
+    the citation count taken from the hidden changes only.
+    """
+    pairs: dict[str, dict] = {}
+    for item in items:
+        pair = pairs.setdefault(item["pair"], {"pair": item["pair"],
+                                               "material": [], "quiet": []})
+        pair["material" if item["material"] else "quiet"].append(item)
+
+    for pair in pairs.values():
+        unverified = sum(
+            1
+            for item in pair["quiet"]
+            for claim in item["claims"]
+            if claim["verification"].get("status") != "verified"
+        )
+        pair["quiet_count"] = len(pair["quiet"])
+        pair["quiet_citations"] = (
+            "all citations verified" if not unverified
+            else f"{unverified} citation(s) not verified"
+        )
+    return list(pairs.values())
 
 
 def _render(request, template, **context):
@@ -121,21 +298,49 @@ def home():
     return RedirectResponse(f"/projects/{PROJECT}/review", status_code=307)
 
 
+def company_name() -> str:
+    """The company's display name, from the graph file rather than a constant."""
+    import json
+
+    try:
+        return json.loads(COMPANY_FILE.read_text(encoding="utf-8"))["company_name"]
+    except (OSError, KeyError, ValueError):
+        return COMPANY_ID
+
+
+def _layout(conn, project_id: str, state) -> dict:
+    """The sidebar and header, rendered from the same state the page uses."""
+    version = conn.execute("select docket, title from versions order by number").fetchone()
+    versions = versions_view(conn, state)
+    return {
+        "project_id": project_id,
+        "state": state,
+        "company_name": company_name(),
+        "docket": version["docket"] if version else "",
+        "proceeding_title": version["title"] if version else "",
+        "versions": versions,
+        "open_owner": len([t for t in state.open_tasks() if t.get("queue") == "owner"]),
+        "open_expert": len([t for t in state.open_tasks() if t.get("queue") == "expert"]),
+    }
+
+
 def _review_context(conn, project_id: str, error: str | None = None) -> dict:
     state = events.replay(conn, project_id)
     blocking = [
         t for t in state.tasks.values()
         if t.get("reason") == "new_obligation" and t.get("status") == "open"
     ]
+    layout = _layout(conn, project_id, state)
     return {
-        "project_id": project_id,
-        "state": state,
+        **layout,
         "items": review_items(conn, state, _changes(conn)),
         "next_version": _next_version(conn, state),
         "owner_count": len([t for t in state.tasks.values() if t.get("queue") == "owner"]),
         "expert_count": len([t for t in state.tasks.values() if t.get("queue") == "expert"]),
         "blocking": blocking,
         "error": error,
+        "orientation": orientation(state, layout["versions"]),
+        "pairs": by_pair(review_items(conn, state, _changes(conn))),
     }
 
 
@@ -175,8 +380,8 @@ def queue(request: Request, project_id: str):
         if node.get("type") == "obligation" and node["id"] not in {c["id"] for c in created}:
             created.append(node)
     return templates.TemplateResponse(request, "queue.html", {
-        "project_id": project_id, "state": state, "items": items, "people": people,
-        "created": created,
+        **_layout(conn, project_id, state),
+        "items": items, "people": people, "created": created,
         # The form is prefilled with the obligation make live created, so the
         # default path through the UI produces the same v3 mapping prompts that
         # the committed cache holds (see NOTES, task 15).
@@ -190,7 +395,7 @@ def audit(request: Request, project_id: str, upto: int | None = None):
     log = events.history(conn, project_id, upto)
     state = events.replay(conn, project_id, upto)
     return templates.TemplateResponse(request, "audit.html", {
-        "project_id": project_id, "state": state,
+        **_layout(conn, project_id, state),
         "log": list(reversed(log)), "upto": upto,
     })
 
@@ -198,6 +403,26 @@ def audit(request: Request, project_id: str, upto: int | None = None):
 @app.get("/projects/{project_id}/state")
 def state_at(request: Request, project_id: str, upto: int | None = None):
     return audit(request, project_id, upto)
+
+
+@app.get("/projects/{project_id}/about")
+def about(request: Request, project_id: str):
+    """Static prose over live values (PRD R4.8, TDD 6.4)."""
+    conn = connect()
+    state = events.replay(conn, project_id)
+    counts = {
+        row["type"]: row["n"]
+        for row in conn.execute("select type, count(*) as n from nodes group by type")
+    }
+    return templates.TemplateResponse(request, "about.html", {
+        **_layout(conn, project_id, state),
+        "node_count": sum(counts.values()),
+        "node_counts": counts,
+        "edge_count": conn.execute("select count(*) from edges").fetchone()[0],
+        "paragraph_count": conn.execute("select count(*) from paragraphs").fetchone()[0],
+        "cache_entries": len(list(llm.CACHE_DIR.glob("*.json"))),
+        "event_count": len(events.history(conn, project_id)),
+    })
 
 
 @app.post("/projects/{project_id}/versions")

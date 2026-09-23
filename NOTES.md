@@ -752,3 +752,39 @@ A test bug on the way: the within-pair ordering assertion split a change id on "
 read the paragraph number, which fails on a removal, whose id is `c:v2->v3:-p14`. The
 application code was never affected, because `_order` reads the paragraph id, which
 carries no marker.
+
+## Task 17: orientation and layout
+
+Built against PRD R4.6 to R4.8 and TDD 6.1 to 6.4, spec committed first in 3441a7b.
+
+**`orientation(state, versions)` computes prose from state, and nothing is written per
+version.** One `Paragraph` per processed pair, newest first, carrying the versions
+compared, the counts, whether any citation was rejected, and the majority
+`version_status`. Only the newest paragraph carries the next step, because the next step
+describes the workspace now, not each pair in history. A fourth version file would
+produce a correct banner with no template change, which is the property that stops this
+being a hand-written blurb.
+
+**First visit is derived, not stored**: no task approved, edited or escalated and no node
+created. The About link appears then and stops once anyone has acted.
+
+**Correction found by a test: the next-step rules are ordered for a reason.** After
+loading v3 the banner still says to start with the expert queue, because v3 raises its
+own `new_obligation` item, on the semi-annual reporting paragraph that absorbs the
+removed queue duty. My test expected "every version has been loaded". The spec's rule
+order is right and the test was wrong; it now asserts the expert-queue message after v3
+and the every-version message only once the queue is clear.
+
+**The sidebar and the `<details>` block both read from the same replay as the page**, so
+there is no second source for version status or open counts.
+
+**A template include, not a fourth page template.** The per-change markup moved to
+`_change.html` so the material list and the collapsed list render identically. TDD 6
+counts four page templates over one layout; `_change.html` is a fragment of the review
+page rather than a page.
+
+**Two test assumptions had to change with the spec**, both recorded here because they are
+the same mistake in different clothes: a test asserting paragraph order across a whole
+pair, when material changes now come first, and a test asserting the next step after v3.
+Neither was a defect; both were tests pinned to the old behaviour, and the spec changed
+under them.

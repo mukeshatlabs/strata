@@ -430,8 +430,13 @@ def test_review_orders_the_newest_version_pair_first(client, monkeypatch):
     def para_number(change_id):
         return int(re.search(r"p(\d+)$", change_id).group(1))
 
-    first = [i for i in ids if i.startswith("c:v2->v3")]
-    assert first == sorted(first, key=para_number), "within a pair, paragraph order"
+    # Within a pair, material changes come first (TDD 6.3), each group in
+    # paragraph order, so check the groups rather than the whole run.
+    quiet = body[body.index("<details"):]
+    quiet_ids = {i.replace("&gt;", ">") for i in re.findall(r"<h2>(c:[^<]+)</h2>", quiet)}
+    for pair in ("v2->v3", "v1->v2"):
+        group = [i for i in ids if i.startswith(f"c:{pair}") and i not in quiet_ids]
+        assert group == sorted(group, key=para_number), f"{pair} material order"
 
 
 def test_review_labels_each_version_pair(client, monkeypatch):
@@ -449,3 +454,223 @@ def test_a_single_pair_still_renders_one_heading(client):
     body = client.get(f"/projects/{PROJECT}/review").text
     assert body.count('class="pair"') == 1
     assert "v1 to v2" in body
+
+
+# --- task 17: orientation, layout, about (PRD R4.6-R4.8, TDD 6.1-6.4) ---
+
+
+def _load_v3(client):
+    _resolve_new_obligation_items(client)
+    return client.post(f"/projects/{PROJECT}/versions", data={"version_id": "v3"},
+                       follow_redirects=False)
+
+
+def test_orientation_after_bootstrap_names_the_version_and_counts(client):
+    conn = db.connect(app_module.DB_PATH)
+    state = events.replay(conn, PROJECT)
+    paragraphs = app_module.orientation(state, app_module.versions_view(conn, state))
+    conn.close()
+
+    assert len(paragraphs) == 1, "one paragraph per processed pair"
+    p = paragraphs[0]
+    assert p.pair == "v1 to v2"
+    assert "version 2" in p.heading.lower()
+    assert "version 1" in p.heading.lower()
+    assert "revised" in p.heading.lower()
+    assert "2026-05-14" in p.heading
+
+    body = " ".join(p.sentences)
+    assert "14" in body, "paragraphs changed"
+    assert "material" in body
+    assert "expert" in body
+
+
+def test_orientation_next_step_is_the_expert_queue_while_unresolved(client):
+    conn = db.connect(app_module.DB_PATH)
+    state = events.replay(conn, PROJECT)
+    p = app_module.orientation(state, app_module.versions_view(conn, state))[0]
+    conn.close()
+    assert "expert queue" in p.next_step.lower()
+    assert "new obligation" in p.next_step.lower()
+
+
+def test_orientation_next_step_becomes_ready_to_load(client):
+    _resolve_new_obligation_items(client)
+    conn = db.connect(app_module.DB_PATH)
+    state = events.replay(conn, PROJECT)
+    p = app_module.orientation(state, app_module.versions_view(conn, state))[0]
+    conn.close()
+    assert "expert queue is clear" in p.next_step.lower()
+    assert "3" in p.next_step, "names the version ready to load"
+
+
+def test_orientation_after_v3_has_two_paragraphs_newest_first(client, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    assert _load_v3(client).status_code == 303
+
+    conn = db.connect(app_module.DB_PATH)
+    state = events.replay(conn, PROJECT)
+    paragraphs = app_module.orientation(state, app_module.versions_view(conn, state))
+    conn.close()
+
+    assert [p.pair for p in paragraphs] == ["v2 to v3", "v1 to v2"]
+    assert "final" in " ".join(paragraphs[0].sentences).lower()
+    assert paragraphs[1].next_step is None, "only the newest carries the next step"
+
+    # v3 raises its own new-obligation item, so rule 1 still wins over rule 3.
+    assert "expert queue" in paragraphs[0].next_step.lower()
+    _resolve_new_obligation_items(client)
+    conn = db.connect(app_module.DB_PATH)
+    state = events.replay(conn, PROJECT)
+    after = app_module.orientation(state, app_module.versions_view(conn, state))
+    conn.close()
+    assert "every version has been loaded" in after[0].next_step.lower()
+
+
+def test_orientation_reports_a_rejected_citation(client, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    _load_v3(client)
+    conn = db.connect(app_module.DB_PATH)
+    state = events.replay(conn, PROJECT)
+    newest = app_module.orientation(state, app_module.versions_view(conn, state))[0]
+    conn.close()
+    assert "citation" in " ".join(newest.sentences).lower()
+
+
+def test_about_link_shows_on_a_first_visit_and_stops_after_work(client):
+    conn = db.connect(app_module.DB_PATH)
+    state = events.replay(conn, PROJECT)
+    assert app_module.orientation(state, app_module.versions_view(conn, state))[0].about_link
+    conn.close()
+
+    _resolve_new_obligation_items(client)
+    conn = db.connect(app_module.DB_PATH)
+    state = events.replay(conn, PROJECT)
+    assert not app_module.orientation(
+        state, app_module.versions_view(conn, state)
+    )[0].about_link, "the link stops once someone has acted"
+    conn.close()
+
+
+def test_review_page_renders_the_banner(client):
+    body = client.get(f"/projects/{PROJECT}/review").text
+    assert "compared against version 1" in body
+    assert "expert queue" in body.lower()
+
+
+# --- layout (TDD 6.1) -----------------------------------------------------
+
+
+def test_header_subtitle_is_data_driven(client):
+    body = client.get(f"/projects/{PROJECT}/review").text
+    assert "Meridian Power &amp; Light" in body or "Meridian Power & Light" in body
+    assert "26-0412-RM" in body
+
+
+@pytest.mark.parametrize("page", ["review", "queue", "audit", "about"])
+def test_sidebar_is_on_every_page(client, page):
+    body = client.get(f"/projects/{PROJECT}/{page}").text
+    assert "Review center" in body
+    assert "Expert queue" in body
+    assert "About this workspace" in body
+    assert "Versions" in body
+
+
+def test_sidebar_shows_version_status_before_and_after_loading(client, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    body = client.get(f"/projects/{PROJECT}/review").text
+    sidebar = body[body.index("<nav"): body.index("</nav>")]
+    assert "baseline" in sidebar, "v1 is the baseline"
+    assert "not yet loaded" in sidebar, "v3 is not loaded"
+    assert "14" in sidebar, "v2 processed, with its change count"
+
+    _load_v3(client)
+    sidebar = client.get(f"/projects/{PROJECT}/review").text
+    sidebar = sidebar[sidebar.index("<nav"): sidebar.index("</nav>")]
+    assert "not yet loaded" not in sidebar
+    assert "13" in sidebar
+
+
+def test_sidebar_shows_open_counts(client):
+    conn = db.connect(app_module.DB_PATH)
+    state = events.replay(conn, PROJECT)
+    owner = len([t for t in state.open_tasks() if t.get("queue") == "owner"])
+    expert = len([t for t in state.open_tasks() if t.get("queue") == "expert"])
+    conn.close()
+    sidebar = client.get(f"/projects/{PROJECT}/audit").text
+    sidebar = sidebar[sidebar.index("<nav"): sidebar.index("</nav>")]
+    assert str(owner) in sidebar and str(expert) in sidebar
+
+
+def test_sidebar_load_button_posts_the_next_version(client):
+    sidebar = client.get(f"/projects/{PROJECT}/queue").text
+    sidebar = sidebar[sidebar.index("<nav"): sidebar.index("</nav>")]
+    assert "/versions" in sidebar
+    assert 'value="v3"' in sidebar
+
+
+# --- review ordering (TDD 6.3) -------------------------------------------
+
+
+def test_material_changes_come_before_the_details_block(client):
+    body = client.get(f"/projects/{PROJECT}/review").text
+    assert "<details" in body
+    first_material = body.index("c:v1-&gt;v2:p12")
+    assert first_material < body.index("<details"), "material changes lead"
+
+
+def test_details_summary_counts_and_reports_citations(client):
+    import re
+
+    body = client.get(f"/projects/{PROJECT}/review").text
+    summary = re.search(r"<summary[^>]*>(.*?)</summary>", body, re.S).group(1)
+    summary = " ".join(re.sub(r"<[^>]+>", " ", summary).split())
+    assert "not material" in summary
+    assert re.search(r"\d+ changes", summary)
+    assert "citation" in summary
+
+
+def test_verified_badge_and_path_are_still_in_the_material_section(client):
+    """The task 15 assertions must still hold after reordering."""
+    body = client.get(f"/projects/{PROJECT}/review").text
+    material = body[: body.index("<details")]
+    assert "verified" in material
+    assert "OBL-3 &rarr; PRJ-1 &rarr; DOC-4" in material or \
+           "OBL-3 → PRJ-1 → DOC-4" in material
+
+
+def test_no_tasks_line_states_the_actual_reason(client):
+    body = client.get(f"/projects/{PROJECT}/review").text
+    assert "not material" in body
+    assert "no downstream nodes" in body or "not material" in body
+
+
+# --- about page (TDD 6.4) ------------------------------------------------
+
+
+def test_about_page_renders_with_live_values(client):
+    r = client.get(f"/projects/{PROJECT}/about")
+    assert r.status_code == 200
+    body = r.text
+    assert "26-0412-RM" in body
+    assert "Meridian" in body
+    assert "32" in body, "node count from the database"
+    assert "21" in body, "edge count"
+    assert "2026-05-14" in body, "v2 issued date"
+    assert "2027-01-01" in body, "v3 effective date"
+
+
+def test_about_page_explains_the_traps_and_the_cache(client):
+    body = client.get(f"/projects/{PROJECT}/about").text.lower()
+    assert "footnote" in body, "the renumbering trap"
+    assert "penalty" in body
+    assert "cache" in body
+    assert "prefilled" in body or "prefill" in body
+
+
+def test_about_page_counts_cache_entries(client):
+    import pathlib
+
+    body = client.get(f"/projects/{PROJECT}/about").text
+    live = len(list(pathlib.Path("data/llm_cache").glob("*.json")))
+    assert str(live) in body

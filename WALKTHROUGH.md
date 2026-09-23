@@ -244,7 +244,20 @@ Then one `task_created` event per merged task.
 ## What the screen shows
 
 `app.py` renders every page from `events.replay` on each request, so the review center
-and the audit trail cannot disagree. Approve, edit and escalate append events;
+and the audit trail cannot disagree. The shared layout's sidebar, listing each version
+with what has been done to it and the open task counts, comes from that same replay, so
+it is correct on whichever page you are on.
+
+`orientation(state, versions)` turns the state into the banner at the top of the review
+center: one paragraph per processed version pair, newest first, each naming the versions
+compared and the counts, plus one next-step sentence chosen by rule — resolve the expert
+queue while a new obligation is unresolved, otherwise load the next version, otherwise
+nothing is left. Nothing in it is written per version, so a fourth version file would
+produce a correct banner with no template change.
+
+Within a pair, changes with a material claim are listed first and the rest are collapsed
+behind one counted summary line, because the not-material changes are the majority and
+are the ones a reviewer has already decided not to care about. Approve, edit and escalate append events;
 **edit** additionally computes the change signature and the lineage key and writes them
 into the payload, which is what makes the correction findable in the next version.
 Rollback appends a `rollback` event, and `replay` ignores everything after its `to_seq`

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% set page = 'about' %}
+{% block title %}About this workspace{% endblock %}
+{% block body %}
+<article>
+<h1>About this workspace</h1>
+<p class="sub">Read this first if you have not seen Strata before.</p>
+
+<h2 class="sec">What Strata does</h2>
+<p>A regulatory proceeding arrives as a sequence of versions of roughly the same
+document. Strata diffs each new version against the one before it, has a model say what
+each change does, and then <strong>checks every quoted passage against the source text
+mechanically</strong> before a person sees it. Verified changes are mapped to the
+company's own obligations, and the company graph is walked to find the projects and
+documents downstream, so each item of work names the node it affects and the path that
+reached it. Anything the system cannot verify or is not confident about goes to an
+expert instead of to the person who owns the work.</p>
+
+<h2 class="sec">The proceeding</h2>
+<p>Docket {{ docket }}, "{{ proceeding_title }}". Synthetic, written for this
+prototype. {{ versions|length }} versions, {{ paragraph_count }} paragraphs in total.</p>
+<table>
+  <tr><th>Version</th><th>Status</th><th>Issued</th><th>Effective</th><th>In this workspace</th></tr>
+  {% for version in versions %}
+  <tr>
+    <td>Version {{ version.number }}</td>
+    <td>{{ version.doc_status }}</td>
+    <td>{{ version.issued }}</td>
+    <td>{{ version.effective or '—' }}</td>
+    <td>{% if version.status == 'processed' %}processed, {{ version.changes }} changes
+        {% elif version.status == 'baseline' %}baseline, nothing to diff against
+        {% else %}not yet loaded{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+<p>The data carries deliberate traps, because the point of the prototype is what it
+refuses to get wrong:</p>
+<ul>
+  <li>A <strong>footnote renumbering</strong> and a cosmetic rewording that change no
+    duty. Both must come back not material.</li>
+  <li>One paragraph that shortens <strong>two deadlines at once</strong>, which must
+    produce two claims and reach two obligations.</li>
+  <li>A <strong>new penalty</strong> with no matching obligation in the company graph.
+    No existing node is the right answer, so it is escalated for a person to create one.</li>
+  <li>An obligation <strong>removed entirely</strong> in the final version, whose quote
+    can only come from the previous version because the text no longer exists.</li>
+  <li>A paragraph renumbered after an insertion, which must not be reported as a change.</li>
+  <li>A <strong>distractor</strong>: a nearby paragraph containing the same number in a
+    different context, which the verifier rejects if it is quoted.</li>
+</ul>
+
+<h2 class="sec">The company</h2>
+<p>{{ company_name }}, also synthetic. {{ node_count }} nodes and {{ edge_count }} edges:
+{{ node_counts.get('obligation', 0) }} obligations,
+{{ node_counts.get('project', 0) }} projects,
+{{ node_counts.get('document', 0) }} documents and
+{{ node_counts.get('person', 0) }} people. Projects depend on obligations, documents
+implement them, and documents reference projects, so every edge points toward an
+obligation or a project and impact is found by walking those edges backwards.</p>
+
+<h2 class="sec">What happened when this started</h2>
+<p><code>make run</code> reset the database, ingested the versions and the company
+graph, and processed the first version pair, which is why the review center already has
+something on it. {{ event_count }} events have been recorded so far. Project state is
+never stored: every page you see is computed by replaying that log, which is why the
+audit page can roll back to any point without anything being deleted.</p>
+
+<h2 class="sec">How the model calls are cached</h2>
+<p>There are exactly two model call sites: one that reads a change and returns claims,
+and one that maps a verified claim to obligations. Every call is keyed by a hash of the
+model, the prompt version, the messages and the response schema, and the responses are
+committed to the repository, {{ cache_entries }} of them. The tests and the evals run
+from that cache with no API key and no network.</p>
+<p>One consequence is worth knowing before you click: the recorded responses for the
+final version list the obligation an expert creates while resolving the previous
+version's expert queue. Resolve that queue first, and accept the prefilled values, or
+the next version builds a prompt that was never recorded. The app handles it, rolling
+the run back and saying so, rather than failing.</p>
+
+<h2 class="sec">A suggested path</h2>
+<ol>
+  <li>On the <a href="/projects/{{ project_id }}/review">review center</a>, read one
+    material change: the summary, the quote, the badge, and the paths under it.</li>
+  <li>Open the collapsed "not material" block and see what was filtered out, including
+    the footnote renumbering.</li>
+  <li>Go to the <a href="/projects/{{ project_id }}/queue">expert queue</a>. The new
+    penalty is there because no existing obligation fits. Create it with the prefilled
+    form; the second item about the same duty offers to link to what you just made.</li>
+  <li>Load the next version from the sidebar. The change to the same penalty now links
+    to the obligation you created.</li>
+  <li>Open the <a href="/projects/{{ project_id }}/audit">audit page</a> and roll back
+    to an earlier sequence number. The review center changes; the log does not shrink.</li>
+</ol>
+</article>
+{% endblock %}
