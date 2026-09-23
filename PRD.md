@@ -1,6 +1,6 @@
 # Strata PRD: Regulatory Change-to-Action Workspace
 
-Version 0.2, draft for review. Author: Mukesh Jain.
+Version 0.3, as built. Author: Mukesh Jain.
 
 This document specifies the requirements for the Strata prototype. Each requirement in
 Section 5 has acceptance criteria. Each criterion is implemented as a test or as a row
@@ -180,7 +180,8 @@ M (manual check in the prototype).
 - R2.3 Each version is classified draft or final. A version whose only signals of
   finality are the status line and an effective-date sentence is classified final. E
 - R2.4 Every claim about a change carries a quoted passage and a version and paragraph
-  reference. A verifier confirms the passage exists in the referenced text. An exact
+  reference. For a modified paragraph the quote may come from either version; the
+  changed text of a pure deletion exists only in the earlier one. A verifier confirms the passage exists in the referenced text. An exact
   match is verified. A small edit distance is near-match, with the distance recorded.
   Anything else is rejected. The quote must also overlap the span the diff identified
   as changed; a quote taken from unchanged text in the same paragraph is rejected. T
@@ -308,4 +309,11 @@ single question decides whether the market is tens of millions or billions.
 - The confidence threshold for escalation is 0.7 for the prototype. It will be tuned
   against the override rate.
 - Near-match citations are shown to Dana with the edit distance and a distinct badge.
-  They are not routed to review.
+  They are not routed to review. A link whose rationale quote fails the same check is
+  routed to review, because an invented rationale on a plausible link is exactly what a
+  reviewer should see.
+- The expert is a person in the company graph, P-8, regulatory counsel, added during the
+  build. Expert-queue items are assigned to that node rather than left unassigned.
+- A change's identity, for carrying a human correction forward between versions, is its
+  normalized content and not its paragraph ID. Paragraph numbers shift in every version
+  of a proceeding.

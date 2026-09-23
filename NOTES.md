@@ -545,3 +545,56 @@ step over a live obligation store rather than replayed from a frozen cache.
 **make run is now reset, bootstrap, serve.** `pipeline bootstrap` ingests and runs
 v1 to v2 from cache before uvicorn starts, so the review page has 14 changes, 9 owner
 tasks and 2 expert items on first load rather than being empty.
+
+---
+
+## Build log summary
+
+Sixteen tasks, one commit each plus fixes. What was generated and what was rewritten:
+
+**Written straight from the spec and kept**: `models.py`, `db.py`, `ingest.py`,
+`llm.py`, `graph.py`, `events.py`, `routing.py`, the templates. These follow TDD
+Section 2 and 3 closely enough that the first implementation passed its tests.
+
+**Rewritten during the build**:
+
+- `diff.py`'s alignment. tasks.md said align by paragraph number, then by similarity at
+  0.8. Both halves were wrong for this data: an insertion at `v2:p17` makes number
+  alignment pair unrelated text from p17 onward, and a 0.8 floor applied to
+  equal-length pairs rejects CH-17 (0.792) and CH-19 (0.218), which gold requires to be
+  modifications. Replaced with difflib over the paragraph sequence, positional pairing
+  inside equal blocks, similarity only where one side must drop out, threshold 0.6.
+- `verify.py`'s step order. TDD 3.4 listed the paragraph check fourth while its prose
+  said it runs first. It runs first, in code and now in the document.
+- `verify.find_quote` was extracted in task 9 so mapping could check a rationale quote
+  with the same search, rather than growing a second implementation of the one thing
+  the product's credibility rests on.
+- `evals/run_evals.py` was rewritten before its first run: the first version
+  re-implemented the pipeline sequence and immediately diverged from it, using one
+  obligation list for both version pairs when the live run had mapped v1 to v2 before
+  OBL-12 existed. It now drives `pipeline.run_version` and reads metrics out of the log.
+
+**Bugs found by tests, not by reading**:
+
+- `impact_found` events were written as `impact.__dict__`, which has no `claim_id`,
+  while `replay` keys impacts on `claim_id`. Every replay after a run raised `KeyError`.
+  Found by a test that replays rather than trusting the return value.
+- Gold VF-8 was vacuous: its `source_text_override` was byte-identical to its quote and
+  the version files hold no non-ASCII characters, so the row passed whether or not
+  normalization existed. Fixed with approval.
+- A pipeline test stub matched on text that also appears in a neighbouring change's
+  context paragraphs, and `extract.parse_response` rejected the resulting claim. The
+  parser caught a malformed test.
+
+**Three edits to `data/`, each with approval and each recorded above**: the VF-8
+normalization fix, P-8 regulatory counsel, and gold IM-5 after the OBL-12 edge was
+added.
+
+**Two prompt iterations, from three planned.** The third was conditional on being
+needed and was not; the reasoning is in the task 14 section.
+
+**What the final run scores**: materiality 16/16, draft/final 2/2 by majority vote,
+extraction precision 88% and recall 94%, mapping precision and recall 100%, impact
+coverage 13/13 with zero leakage, citation fidelity 30 verified, 0 near, 1 rejected.
+The single rejection is the system working: an unverifiable citation reaching a human
+instead of an owner.

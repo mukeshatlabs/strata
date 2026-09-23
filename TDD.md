@@ -1,6 +1,6 @@
 # Strata TDD: Technical Design
 
-Version 0.3, draft for review. Author: Mukesh Jain.
+Version 0.4, as built. Author: Mukesh Jain.
 
 This document specifies the technical design of the Strata prototype. For each
 component it states what is built, which alternatives were considered, and why they
@@ -83,7 +83,13 @@ and no client-side state, so templates keep the whole product in one language.
 
 Other dependencies are pytest for tests, `difflib` from the standard library for
 diffing, `rapidfuzz` for edit distance, and the `anthropic` SDK for model calls. There
-are no other runtime dependencies.
+are no other runtime dependencies. `httpx` is a test-only dependency, for FastAPI's
+test client.
+
+The model is `claude-opus-5`, named once in a constant at the top of `llm.py`.
+Structured output is requested through `output_config.format` with a JSON schema.
+Sampling parameters are not sent: they are rejected on this model, so reproducibility
+across runs comes from the committed cache and nothing else.
 
 ### 1.2 Repository layout
 
@@ -97,6 +103,7 @@ strata/
   Makefile               make run, make test, make eval, make reset
   pyproject.toml
   .env.example           ANTHROPIC_API_KEY=
+  evals/results.md       the scored run, committed
   data/
     proceeding/
       v1.md  v2.md  v3.md
