@@ -13,7 +13,7 @@ import json
 from . import llm
 from .models import Claim
 
-PROMPT_VERSION = "extract/v2"
+PROMPT_VERSION = "extract/v3"
 
 OBLIGATION_CHANGES = ("created", "modified", "removed", "none")
 VERSION_STATUSES = ("draft", "final")
@@ -60,6 +60,16 @@ public utility commission rulemaking document. Report what the change does.
 A change is material if it alters a duty, deadline, threshold, penalty, scope, or
 applicability. Wording, numbering, status language, procedural dates, and
 background are not material.
+
+Judge the paragraph in front of you, not the rule as a whole. A paragraph that
+summarizes, previews, describes or cross-references a duty imposed by some other
+paragraph is not itself an obligation change, even when it names a new duty and
+even when the duty it describes is genuinely new. Background sections, summaries
+of the proposed rule, and recitals of what commenters said all read as though
+they impose duties; they do not. The obligation changes in the paragraph that
+states the duty in operative language, and that paragraph produces its own
+claim. If this paragraph only tells the reader that something happens elsewhere,
+return obligation_change "none" and material false.
 
 Rules for quotes:
 - Copy the quote character-for-character from the paragraph text below. Do not
