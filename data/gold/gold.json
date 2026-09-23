@@ -156,8 +156,10 @@
     },
     {
       "id": "IM-5", "change": "CH-17", "from_obligation": "OBL-12",
-      "expected": [],
-      "tests": "obligation created in v2 review has no edges yet; impacts empty; task goes to OBL-12's owner"
+      "expected": [
+        {"node": "DOC-1", "path": ["OBL-12", "DOC-1"], "hops": 1}
+      ],
+      "tests": "obligation created during v2 review, with the implements edge an expert added at the same time; the v3 change to the same penalty propagates through it"
     }
   ],
 
