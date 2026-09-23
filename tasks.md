@@ -218,3 +218,18 @@ PRD: R4.6, R4.7, R4.8. TDD: 6.1 to 6.4.
 - Commit: `app: sidebar layout, orientation banner, about page`.
 - Update WALKTHROUGH.md's app section and the README's suggested path if either
   describes the old layout.
+
+## Task 18: Version pages
+
+PRD: R4.9. TDD: 6.1, 6.2, 6.5.
+
+- `GET /projects/{id}/versions/{vid}` and `version.html`: header block as issued, then
+  paragraphs with ID labels and anchors, from the versions and paragraphs tables.
+- Sidebar: every version links to its page; the next unprocessed one keeps the Load
+  button.
+- Review center: `quote_para_id` becomes a link to the paragraph anchor; the next-step
+  notice and Load button move under the orientation paragraphs.
+- Test first: version page 200 with the v2:p12 text and its anchor; the review page's
+  quote reference links to it; unknown version 404.
+- No pipeline changes. No new dependencies. No JavaScript.
+- Commit: `app: version pages, next-step placement`.

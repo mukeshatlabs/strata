@@ -1,6 +1,6 @@
 # Strata TDD: Technical Design
 
-Version 1.2. Author: Mukesh Jain.
+Version 1.3. Author: Mukesh Jain.
 
 This document specifies the technical design of the Strata prototype. For each
 component it states what is built, which alternatives were considered, and why they
@@ -648,8 +648,9 @@ misses correctly.
 - `GET /projects/{id}/audit` shows the event list with a rollback control.
 - `GET /projects/{id}/state?upto=N` shows the state as of event N.
 - `GET /projects/{id}/about` shows the "About this workspace" page (PRD R4.8).
+- `GET /projects/{id}/versions/{version_id}` shows one version's text (PRD R4.9).
 
-There are four page templates over one shared layout, and no JavaScript beyond
+There are five page templates over one shared layout, and no JavaScript beyond
 form submission. The
 verification badge, the confidence, and the path are shown on every item, so the
 decisions that matter most in the system are visible in the product as well as in the
@@ -662,9 +663,11 @@ the loaded data: "Regulatory change to action · {company name} · Docket {docke
 Navigation is a fixed left sidebar, about 220 pixels wide, with three groups: the
 page links (Review center, Expert queue, Audit, About this workspace); a Versions
 list showing each ingested version with its status (baseline, processed with its
-change count, or not yet loaded with the Load button); and open counts (owner tasks
-open, expert items open). The sidebar is rendered from the same `State` the page
-uses, so it is correct on every page.
+change count, or not yet loaded); and open counts (owner tasks open, expert items
+open). Every version in that list is a link to its version page, so the source text
+is one click away from anywhere; the next unprocessed version also carries the Load
+button. The sidebar is rendered from the same `State` the page uses, so it is correct
+on every page.
 
 ### 6.2 Orientation banner
 
@@ -687,6 +690,11 @@ pair, newest first, each built from state:
 On a first visit, the banner ends with a one-line link to the About page. No text in
 the banner is hand-written per version; a new version file would produce a correct
 banner without a template change.
+
+The next-step notice and the Load button render directly under the orientation
+paragraphs, inside the same block. The orientation states what the last run found and
+the next step says what to do about it, so separating them puts the answer above the
+question.
 
 ### 6.3 Review center ordering
 
@@ -712,6 +720,23 @@ next step changes to "ready to load"; after loading v3 the banner has two paragr
 and states the rule is final; material changes render before the `<details>` block;
 the About page returns 200 and shows the live counts; the sidebar shows v3 as not
 yet loaded before and as processed after.
+
+### 6.5 Version pages
+
+`GET /projects/{id}/versions/{version_id}` renders `version.html` from the `versions`
+and `paragraphs` tables: the header block as issued (docket, title, version, status,
+issued, effective), then every paragraph in order, each labelled with its paragraph ID
+and carrying an anchor of the same name. Paragraph text is rendered as stored, so what
+is on the screen is what the verifier searched.
+
+On the review center, a claim's `quote_para_id` becomes a link to that anchor. A
+reviewer reading a quote can reach the paragraph it came from in one click and see it
+in context, which is the check the verifier performs mechanically and the reviewer
+performs by eye. Nothing else about the review item changes.
+
+Tests (`tests/test_app.py`): the version page returns 200 and contains the text of
+`v2:p12` and an anchor for it; the review page's quote reference is a link to that
+anchor; the sidebar links every version; an unknown version returns 404.
 
 ## 7. Data isolation and security
 

@@ -1,6 +1,6 @@
 # Strata PRD: Regulatory Change-to-Action Workspace
 
-Version 1.2. Author: Mukesh Jain.
+Version 1.3. Author: Mukesh Jain.
 
 This document specifies the requirements for the Strata prototype. Each requirement in
 Section 5 has acceptance criteria. Each criterion is implemented as a test or as a row
@@ -229,6 +229,10 @@ M (manual check in the prototype).
   its versions and their deliberate traps, the company graph), what happened when the
   app started, how the model calls are cached, and a suggested path through the
   product. Counts and dates on that page come from the database. M
+- R4.9 The text of every ingested version is viewable as issued, with its paragraph
+  IDs shown, and each quote's paragraph reference on the review page links to that
+  paragraph. Dana can check a quoted passage against its source without leaving the
+  product and without opening the file. M
 
 ### 5.5 Out of scope for the prototype
 
