@@ -458,3 +458,53 @@ empty". The edge was added on instruction so CH-17 has something to propagate th
 Edges never enter a prompt, so this affects no cached response and can be reverted
 without a live run; it will show as an IM-5 failure in the task 14 evals unless the
 edge is dropped or the gold row is revisited.
+
+## Task 14: evals
+
+**The harness drives the pipeline rather than re-implementing it.** The first version
+built its own extract-verify-map loop and immediately missed the cache: it used one
+obligation list for both version pairs, but the live run mapped v1 to v2 before OBL-12
+existed, so the prompts differed. Rewritten to call `pipeline.run_version` for each
+pair, create OBL-12 between them exactly as `make live` does, and read the metrics back
+out of the event log. The eval now measures the thing that ships.
+
+**Two metric definitions that were wrong before they were useful.** Extraction
+precision counted claims from the eleven changes gold does not judge, scoring the model
+against rows that do not exist; it is now scoped to gold-judged changes. And the
+escalation table printed three identical rows because every link scores 0.93 or above,
+which looks like a broken metric; the report now prints the confidence range and says
+the escalations come from the other rules rather than from confidence.
+
+**Iteration results.**
+
+| | extract/v1 | extract/v2 | extract/v3 |
+| --- | --- | --- | --- |
+| Materiality | 15/16 | 15/16 | **16/16** |
+| Extraction precision | 78% | 82% | **88%** |
+| Extraction recall | 88% | 88% | **94%** |
+| Mapping precision | 83% | 83% | **100%** |
+| Citation rejections | 1 | 1 | 1 |
+| Claims | 35 | 33 | 31 |
+
+v2 added the rule to quote the previous version where the changed text only exists
+there. v3 added the rule that a paragraph summarizing or cross-referencing a duty
+imposed elsewhere is not itself an obligation change, which is gold's CH-5 trap; that
+one paragraph also produced the single spurious mapping link, so mapping precision went
+to 100% with it.
+
+**Stopped at two of the three planned iterations.** The third was "only if needed, one
+claim per obligation altered", and the evidence says it is not needed and would not
+help. CH-7 already splits correctly into two `modified` claims, one per obligation, so
+the rule is already satisfied where it applies. The two remaining disagreements are not
+claim-splitting failures: CH-16 produces an extra `created` claim for the queue data
+that v3 folds into the report, which is defensible reading of a paragraph gold itself
+describes as absorbing queue data; and CH-19 labels an obligation `removed` while
+correctly calling it not material, so it routes nowhere. A rule encouraging more claims
+per paragraph would risk the 16/16 materiality score to chase two labels that change no
+behaviour.
+
+**The one remaining citation rejection is correct behaviour.** `c:v2->v3:p7` is the
+pure word deletion; the model names `v3:p7`, whose changed-span list is empty, so the
+verifier rejects and routes to the expert queue. The v2 prompt rule did not move it.
+That is the system doing what it is for: an unverifiable citation reaches a human
+rather than an owner. A rejection rate reported rather than hidden is the PRD 6 metric.
