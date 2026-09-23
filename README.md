@@ -10,9 +10,30 @@ be replayed and rolled back.
 `PRD.md` is the specification, `TDD.md` the design, `WALKTHROUGH.md` a trace of the core
 loop file by file, and `NOTES.md` the build log.
 
+## Quick start
+
+```
+git clone https://github.com/mukeshatlabs/strata.git
+cd strata
+make setup
+make test
+make run
+```
+
+Then open http://localhost:8000.
+
 ## Setup
 
 Requires Python 3.11 or newer. Nothing else: no database server, no API key.
+
+```
+python3 --version
+```
+
+should print 3.11 or higher. If your default `python3` is older, point the Makefile at
+a newer interpreter: `make setup PYTHON=python3.12` (or whatever `which python3.12`
+finds). Every other target uses the virtualenv that `setup` creates, so the variable
+is only needed once.
 
 ```
 make setup

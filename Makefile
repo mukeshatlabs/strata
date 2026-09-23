@@ -1,12 +1,13 @@
 # Strata: build and run targets. Keep these names exact; CLAUDE.md depends on them.
 
+PYTHON ?= python3
 PY := .venv/bin/python
 PIP := .venv/bin/pip
 
 .PHONY: setup run test eval reset live
 
 setup:
-	python3 -m venv .venv
+	$(PYTHON) -m venv .venv
 	$(PIP) install --upgrade pip
 	$(PIP) install -e ".[dev]"
 
