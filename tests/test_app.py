@@ -435,7 +435,7 @@ def test_review_orders_the_newest_version_pair_first(client, monkeypatch):
 
     # Within a pair, material changes come first (TDD 6.3), each group in
     # paragraph order, so check the groups rather than the whole run.
-    quiet = body[body.index("<details"):]
+    quiet = body[body.index('<details class="quiet"'):]
     quiet_ids = {i.replace("&gt;", ">") for i in re.findall(r"<h2>(c:[^<]+)</h2>", quiet)}
     for pair in ("v2->v3", "v1->v2"):
         group = [i for i in ids if i.startswith(f"c:{pair}") and i not in quiet_ids]
@@ -617,16 +617,17 @@ def test_sidebar_load_button_posts_the_next_version(client):
 
 def test_material_changes_come_before_the_details_block(client):
     body = client.get(f"/projects/{PROJECT}/review").text
-    assert "<details" in body
+    assert '<details class="quiet"' in body
     first_material = body.index("c:v1-&gt;v2:p12")
-    assert first_material < body.index("<details"), "material changes lead"
+    assert first_material < body.index('<details class="quiet"'), "material changes lead"
 
 
 def test_details_summary_counts_and_reports_citations(client):
     import re
 
     body = client.get(f"/projects/{PROJECT}/review").text
-    summary = re.search(r"<summary[^>]*>(.*?)</summary>", body, re.S).group(1)
+    quiet = body[body.index('<details class="quiet"'):]
+    summary = re.search(r"<summary[^>]*>(.*?)</summary>", quiet, re.S).group(1)
     summary = " ".join(re.sub(r"<[^>]+>", " ", summary).split())
     assert "not material" in summary
     assert re.search(r"\d+ changes", summary)
@@ -636,7 +637,7 @@ def test_details_summary_counts_and_reports_citations(client):
 def test_verified_badge_and_path_are_still_in_the_material_section(client):
     """The task 15 assertions must still hold after reordering."""
     body = client.get(f"/projects/{PROJECT}/review").text
-    material = body[: body.index("<details")]
+    material = body[: body.index('<details class="quiet"')]
     assert "verified" in material
     assert "OBL-3 &rarr; PRJ-1 &rarr; DOC-4" in material or \
            "OBL-3 → PRJ-1 → DOC-4" in material
@@ -730,7 +731,7 @@ def test_review_quote_reference_links_to_the_paragraph(client):
     body = client.get(f"/projects/{PROJECT}/review").text
     assert f'href="/projects/{PROJECT}/versions/v2#v2:p12"' in body
 
-    material = body[: body.index("<details")]
+    material = body[: body.index('<details class="quiet"')]
     assert "#v2:p12" in material, "the link is on the claim, not only in the details"
 
 
@@ -1002,3 +1003,43 @@ def test_posting_a_selected_obligation_still_records_the_override(client):
     assert edited[0].payload["lineage_key"].startswith("lineage:")
     assert events.replay(conn, PROJECT).tasks[task["task_id"]]["status"] == "edited"
     conn.close()
+
+
+def test_correction_form_is_inside_a_collapsed_details(client):
+    """The select is behind "correct link", closed until someone wants it."""
+    import re
+
+    body = client.get(f"/projects/{PROJECT}/review").text
+    block = body[body.index('<details class="correct"'):]
+    block = block[: block.index("</details>")]
+
+    assert re.search(r"<summary[^>]*>\s*correct link\s*</summary>", block)
+    assert "<select" in block and 'name="obligation_id"' in block
+    assert ">edit</button>" in block
+    assert "open" not in body[body.index('<details class="correct"'):][:40], \
+        "closed by default"
+
+
+def test_correction_details_comes_after_approve_and_escalate(client):
+    body = client.get(f"/projects/{PROJECT}/review").text
+    row = body[body.index("/approve"):]
+    row = row[: row.index('</details>')]
+    assert row.index("/escalate") < row.index('<details class="correct"')
+
+
+def test_every_open_task_row_has_its_own_correction_details(client):
+    """Expert items get one too: deciding a new duty does map to an existing
+    obligation is a correction, and it records the same override."""
+    body = client.get(f"/projects/{PROJECT}/review").text
+    conn = db.connect(app_module.DB_PATH)
+    state = events.replay(conn, PROJECT)
+    owner = len([t for t in state.open_tasks() if t.get("queue") == "owner"])
+    expert = len([t for t in state.open_tasks() if t.get("queue") == "expert"])
+    conn.close()
+    assert (owner, expert) == (6, 2)
+    assert body.count('<details class="correct"') == owner + expert
+
+
+def test_select_is_width_capped(client):
+    body = client.get(f"/projects/{PROJECT}/review").text
+    assert "details.correct select { max-width: 320px; }" in body

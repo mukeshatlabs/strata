@@ -880,3 +880,25 @@ computes the edit signature and the lineage key, and the `task_edited` payload i
 byte-identical. The existing override test posts the same field and still passes
 unchanged, which is the useful signal that this was a presentation change and not a
 behavioural one.
+
+## Post-build: the correction form is collapsed
+
+Each open task row carried an obligation select inline, so a review page with eight open
+tasks rendered eight eleven-option selects and the two buttons that matter, approve and
+escalate, were lost among them. The form now sits behind a `<details>` whose summary
+reads "correct link", closed by default, after the two buttons; opening one shows the
+select and the edit button on their own line in the cell. The select is capped at 320px
+so a long obligation name does not stretch the actions column.
+
+`<details>` does this with no JavaScript, which is the constraint the whole UI is built
+under, and nested `<details>` is valid, so a correction form inside the collapsed
+not-material block works as well.
+
+Two consequences worth recording. The page now has more than one kind of `<details>`, so
+several tests that sliced the body at the first one were retargeted to
+`<details class="quiet"`; their assertions are unchanged, the selector is just precise
+now. And a test of mine expected one correction form per *owner* task and found eight
+against six: expert items are open tasks too and render the form as well. That is
+correct behaviour rather than a bug, because an expert deciding that a supposedly new
+duty does map to an existing obligation is a correction and records the same override,
+so the test was fixed to count both queues.
