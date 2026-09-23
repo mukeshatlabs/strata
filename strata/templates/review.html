@@ -62,25 +62,28 @@
     </p>
     {% endif %}
 
-    {% if entry.tasks %}
-    <table>
+  </div>
+  {% endfor %}
+
+  {% if item.tasks %}
+  <table>
       <tr><th>Node</th><th>Impact paths</th><th>Recommended action</th>
           <th>Assignee</th><th>Status</th><th></th></tr>
-      {% for task in entry.tasks %}
+      {% for task in item.tasks %}
       <tr class="{{ 'done' if task.status != 'open' }}">
         <td>
           <strong>{{ task.node_id or 'escalated' }}</strong>
-          {% if task.node_type %}<br><span class="meta">{{ task.node_type }}</span>{% endif %}
+        {% if task.node_type %}<br><span class="meta">{{ task.node_type }}</span>{% endif %}
         </td>
         <td class="path">
           {% for path in task.paths %}{{ path|join(' &rarr; ')|safe }}<br>{% endfor %}
-          {% if task.reason %}<span class="meta">reason: {{ task.reason }}</span>{% endif %}
+        {% if task.reason %}<span class="meta">reason: {{ task.reason }}</span>{% endif %}
         </td>
         <td>{{ task.recommended_action }}</td>
         <td>{{ task.assignee or '—' }}</td>
         <td>{{ task.status }}</td>
         <td>
-          {% if task.status == 'open' %}
+        {% if task.status == 'open' %}
           <form class="inline" method="post" action="/tasks/{{ task.task_id }}/approve">
             <button type="submit">approve</button>
           </form>
@@ -91,16 +94,14 @@
           <form class="inline" method="post" action="/tasks/{{ task.task_id }}/escalate">
             <button type="submit">escalate</button>
           </form>
-          {% endif %}
+        {% endif %}
         </td>
       </tr>
       {% endfor %}
-    </table>
-    {% else %}
-    <p class="meta">no tasks: not material, or nothing downstream</p>
-    {% endif %}
-  </div>
-  {% endfor %}
+  </table>
+  {% else %}
+  <p class="meta">no tasks: not material, or nothing downstream</p>
+  {% endif %}
 </section>
 {% endfor %}
 {% endblock %}

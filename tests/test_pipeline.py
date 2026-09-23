@@ -135,19 +135,43 @@ def test_tasks_are_replayable_into_state(conn, monkeypatch):
 
 
 def test_one_task_per_node_across_two_obligations(conn, monkeypatch):
-    """CH-7 linked to both obligations reaches PRJ-1 and DOC-1 twice."""
-    both = {"links": [
-        CH7_LINKS["links"][0],
-        {"obligation_id": "OBL-4", "confidence": 0.93, "rationale": "Delivery deadline.",
-         "rationale_quote": "within five (5) business days"},
-    ]}
-    stub_llm(monkeypatch, mapping_response=both)
+    """CH-7 from the real cache: two claims, one per obligation, one task per node.
+
+    Driven by the committed responses rather than a stub, because the stub shape
+    is what hid this: extraction returns one claim per obligation altered, so
+    the merge has to happen across a change's claims, not inside one claim.
+    """
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     run = pipeline.run_version(conn, PROJECT, "v2")
-    node_ids = [t.node_id for t in run["tasks"]]
-    assert len(node_ids) == len(set(node_ids))
+
+    ch7 = [t for t in run["tasks"] if t.change_id == "c:v1->v2:p12"]
+    claims = [c for c in events.replay(conn, PROJECT).claims.values()
+              if c["change_id"] == "c:v1->v2:p12"]
+    assert len(claims) == 2, "CH-7 alters two obligations, so it yields two claims"
+
+    node_ids = [t.node_id for t in ch7]
+    assert len(node_ids) == len(set(node_ids)), f"duplicate node tasks: {node_ids}"
     assert set(node_ids) == {"OBL-3", "OBL-4", "PRJ-1", "DOC-1", "DOC-2", "DOC-4"}
-    prj1 = next(t for t in run["tasks"] if t.node_id == "PRJ-1")
+
+    prj1 = next(t for t in ch7 if t.node_id == "PRJ-1")
     assert prj1.paths == [["OBL-3", "PRJ-1"], ["OBL-4", "PRJ-1"]]
+    assert sorted(prj1.claim_ids) == ["c:v1->v2:p12:k1", "c:v1->v2:p12:k2"]
+    assert prj1.task_id == "c:v1->v2:p12:PRJ-1"
+
+
+def test_approving_a_merged_task_accepts_both_claims(conn, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    run = pipeline.run_version(conn, PROJECT, "v2")
+    prj1 = next(t for t in run["tasks"] if t.node_id == "PRJ-1")
+
+    events.append(conn, events.Event(
+        seq=None, ts="t", actor="dana", type="task_approved", subject_id=prj1.task_id,
+        payload={"task_id": prj1.task_id, "claim_id": prj1.claim_id,
+                 "claim_ids": prj1.claim_ids},
+        project_id=PROJECT,
+    ))
+    accepted = events.replay(conn, PROJECT).accepted_claims
+    assert set(prj1.claim_ids) <= set(accepted)
 
 
 # --- the created-claim skip -----------------------------------------------

@@ -62,6 +62,46 @@ def action_for(obligation_change: str, node_type: str) -> str:
     )
 
 
+def merge_tasks(tasks: list[ReviewTask]) -> list[ReviewTask]:
+    """Merge one change's owner tasks so each node is one piece of work.
+
+    A paragraph that alters two obligations produces one claim per obligation,
+    and each claim reaches the same downstream nodes. Without this, the owner of
+    a project sees it twice for a single paragraph change. Expert tasks are not
+    merged: each carries its own claim's escalation reason.
+    """
+    merged: dict[str, ReviewTask] = {}
+    out: list[ReviewTask] = []
+    for task in tasks:
+        if task.queue != "owner" or not task.node_id:
+            out.append(task)
+            continue
+        key = f"{task.change_id}:{task.node_id}"
+        existing = merged.get(key)
+        if existing is None:
+            merged[key] = ReviewTask(
+                **{**task.__dict__, "task_id": key,
+                   "claim_ids": list(task.claim_ids) or [task.claim_id]}
+            )
+            continue
+        paths = list(existing.paths)
+        obligations = list(existing.obligation_ids)
+        claims = list(existing.claim_ids)
+        for path in task.paths:
+            if path not in paths:
+                paths.append(path)
+        for obligation in task.obligation_ids:
+            if obligation not in obligations:
+                obligations.append(obligation)
+        if task.claim_id not in claims:
+            claims.append(task.claim_id)
+        merged[key] = ReviewTask(
+            **{**existing.__dict__, "paths": paths,
+               "obligation_ids": obligations, "claim_ids": claims}
+        )
+    return out + list(merged.values())
+
+
 def create_tasks(claim, verification, links, impacts, graph) -> list[ReviewTask]:
     """Create review tasks for one claim (TDD 3.8).
 
@@ -127,6 +167,7 @@ def create_tasks(claim, verification, links, impacts, graph) -> list[ReviewTask]
             reason=None,
             paths=entry["paths"],
             obligation_ids=entry["obligations"],
+            claim_ids=[claim.claim_id],
         )
         for node_id, entry in reached.items()
     ]

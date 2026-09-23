@@ -94,19 +94,28 @@ def run_version(conn, project_id: str, version_id: str) -> dict:
 
     tasks = []
     for change in changes:
+        # Tasks are collected for the whole change, then merged, because one
+        # paragraph that alters two obligations produces one claim per
+        # obligation and both reach the same downstream nodes.
+        for_change = []
         for claim in extract.extract_claims(conn, change):
             summary["claims"] += 1
-            tasks.extend(
+            for_change.extend(
                 _run_claim(conn, project_id, change, claim, paragraphs, state,
                            company, obligations)
             )
+        tasks.extend(_emit(conn, project_id, routing.merge_tasks(for_change)))
     summary["tasks"] = tasks
     return summary
 
 
 def _run_claim(conn, project_id, change, claim, paragraphs, state, company,
                obligations) -> list:
-    """Verify one claim, map it, propagate, and create its tasks."""
+    """Verify one claim, map it, propagate, and return its tasks.
+
+    Tasks are returned rather than written: run_version merges a change's tasks
+    across its claims before any task_created event is appended.
+    """
     events.append(conn, _event("claim_extracted", claim.claim_id,
                                claim.__dict__, project_id))
 
@@ -117,8 +126,7 @@ def _run_claim(conn, project_id, change, claim, paragraphs, state, company,
     # A rejected quote on a real change is still a change someone must look at,
     # so this is decided before materiality (TDD 3.4).
     if verification.status == "rejected":
-        return _emit(conn, project_id,
-                     routing.create_tasks(claim, verification, [], [], company))
+        return routing.create_tasks(claim, verification, [], [], company)
 
     if not claim.material:
         return []
@@ -145,8 +153,7 @@ def _run_claim(conn, project_id, change, claim, paragraphs, state, company,
                 "impact_found", claim.claim_id,
                 {**impact.__dict__, "claim_id": claim.claim_id}, project_id))
 
-    return _emit(conn, project_id,
-                 routing.create_tasks(claim, verification, links, impacts, company))
+    return routing.create_tasks(claim, verification, links, impacts, company)
 
 
 def _emit(conn, project_id: str, tasks: list) -> list:

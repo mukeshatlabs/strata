@@ -99,12 +99,18 @@ response.
 `claim_id` as `<change_id>:k1`, `:k2`. It rejects a `quote_para_id` the change does not
 span, which is what caught a malformed test stub during the build.
 
-For `c:v1->v2:p12` this returns **one claim**: the study deadline shortened from
-forty-five to thirty business days.
+For `c:v1->v2:p12` this returns **two claims**, because that paragraph alters two
+duties: `k1`, the study deadline shortened from forty-five to thirty business days, and
+`k2`, the delivery deadline shortened from five to three. One claim per obligation
+altered is what PRD R3.4 asks for, and it is the reason tasks have to be merged for the
+whole change further down.
 
 ---
 
 ## Per claim: `pipeline._run_claim(...)` → `list[ReviewTask]`
+
+These tasks are returned, not written. `run_version` collects every claim of one change
+and merges them before any `task_created` event is appended; see the merge step below.
 
 ### a. `events.append(conn, claim_extracted)`
 
@@ -194,7 +200,8 @@ One `impact_found` event per impact, with `claim_id` merged into the payload, be
 
 ### g. `routing.create_tasks(claim, verification, links, impacts, company)` → `list[ReviewTask]`
 
-`routing.route` applies five rules in order and returns `(queue, reason)`:
+`routing.route` applies five escalation rules in order, then falls through to the owner
+queue, and returns `(queue, reason)`:
 
 1. rejected citation → expert, with the verifier's own reason
 2. any link whose `rationale_status` is `rejected` → expert, `rationale_unverified`
@@ -208,13 +215,24 @@ regulatory counsel. No owner tasks are created even where impacts exist: nothing
 an owner until a human has agreed the claim is sound.
 
 Otherwise one task per reached **node** — the linked obligations themselves, which
-propagation does not return, plus everything reached from them. A node reached by
-several routes is one task carrying every path: a change linking both `OBL-3` and
-`OBL-4` reaches `PRJ-1` twice, which is one piece of work for one owner and two routes a
-reviewer needs to see. The recommended action comes from the `ACTIONS` table keyed on
-`(obligation_change, node_type)`.
+propagation does not return, plus everything reached from them. The recommended action
+comes from the `ACTIONS` table keyed on `(obligation_change, node_type)`.
 
-Then one `task_created` event per task.
+### h. `routing.merge_tasks(tasks_for_this_change)` → `list[ReviewTask]`
+
+Back in `run_version`, once every claim of the change has been processed.
+
+`c:v1->v2:p12` produced two claims, and each of them reached `PRJ-1`, `DOC-1` and
+`DOC-4` through its own obligation. That is one piece of work per node for one owner,
+not two, so owner tasks are merged by node: the task id becomes
+`<change_id>:<node_id>`, `paths` holds every route that reached it
+(`[["OBL-3","PRJ-1"], ["OBL-4","PRJ-1"]]`), `obligation_ids` holds both obligations, and
+`claim_ids` holds both claims, so approving the merged task accepts both.
+
+Expert tasks are not merged. Each carries its own claim's escalation reason, and two
+claims of one change can fail for different reasons.
+
+Then one `task_created` event per merged task.
 
 ---
 

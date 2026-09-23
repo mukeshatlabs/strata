@@ -161,15 +161,21 @@ def _apply(state: State, event: Event) -> None:
 
 
 def _accept(state: State, task: dict) -> None:
-    """A human approval is what moves a claim and its impacts into the state."""
-    claim_id = task.get("claim_id")
-    if not claim_id:
-        return
-    state.accepted_claims[claim_id] = state.claims.get(claim_id, {"claim_id": claim_id})
-    for impact in state.impacts.get(claim_id, []):
-        confirmed = state.confirmed_impacts.setdefault(claim_id, [])
-        if impact not in confirmed:
-            confirmed.append(impact)
+    """A human approval is what moves a claim and its impacts into the state.
+
+    A merged task stands for several claims, so approving it accepts all of them.
+    """
+    claim_ids = task.get("claim_ids") or (
+        [task["claim_id"]] if task.get("claim_id") else []
+    )
+    for claim_id in claim_ids:
+        state.accepted_claims[claim_id] = state.claims.get(
+            claim_id, {"claim_id": claim_id}
+        )
+        for impact in state.impacts.get(claim_id, []):
+            confirmed = state.confirmed_impacts.setdefault(claim_id, [])
+            if impact not in confirmed:
+                confirmed.append(impact)
 
 
 def _record_override(state: State, body: dict) -> None:

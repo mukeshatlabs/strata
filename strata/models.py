@@ -146,10 +146,11 @@ class Impact:
 class ReviewTask:
     """One item in the review center, in the owner queue or the expert queue.
 
-    One task per reached node, so a node reached from two obligations by the same
-    change is one piece of work. Every route that reached it is kept in `paths`,
-    with the obligations those routes started from in `obligation_ids`, so the
-    review page can show both.
+    One task per reached node *per change*, so a node reached from two
+    obligations by the same change is one piece of work even when the two
+    obligations were found by different claims. Every route that reached it is
+    kept in `paths`, the obligations those routes started from in
+    `obligation_ids`, and the claims that produced it in `claim_ids`.
     """
 
     task_id: str
@@ -164,6 +165,7 @@ class ReviewTask:
     reason: str | None = None
     paths: list[list[str]] = field(default_factory=list)
     obligation_ids: list[str] = field(default_factory=list)
+    claim_ids: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

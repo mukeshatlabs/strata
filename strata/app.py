@@ -50,7 +50,11 @@ def _next_version(conn, state) -> str | None:
 
 
 def review_items(conn, state, changes) -> list[dict]:
-    """Group the log's claims and tasks by the change they came from."""
+    """Group claims and tasks by change.
+
+    Tasks hang off the change, not the claim: a task can be merged from several
+    claims of one change, so a claim does not own it.
+    """
     company = graph.load(conn, events.effective(conn, PROJECT))
     grouped: dict[str, dict] = {}
     for claim_id, claim in state.claims.items():
@@ -63,18 +67,25 @@ def review_items(conn, state, changes) -> list[dict]:
             "from_para": change.para_id_from if change else None,
             "to_para": change.para_id_to if change else None,
             "claims": [],
+            "tasks": [],
         })
-        tasks = [t for t in state.tasks.values() if t.get("claim_id") == claim_id]
-        for task in tasks:
-            node = company.nodes.get(task.get("node_id") or "")
-            task["node_type"] = node.type if node else ""
-            task["node_name"] = node.name if node else ""
         item["claims"].append({
             "claim": claim,
             "verification": state.verifications.get(claim_id, {}),
             "links": state.links.get(claim_id, []),
-            "tasks": sorted(tasks, key=lambda t: (t.get("queue", ""), t.get("node_id") or "")),
         })
+
+    for task in state.tasks.values():
+        change_id = task.get("change_id")
+        if change_id not in grouped:
+            continue
+        node = company.nodes.get(task.get("node_id") or "")
+        task["node_type"] = node.type if node else ""
+        task["node_name"] = node.name if node else ""
+        grouped[change_id]["tasks"].append(task)
+
+    for item in grouped.values():
+        item["tasks"].sort(key=lambda t: (t.get("queue", ""), t.get("node_id") or ""))
     return list(grouped.values())
 
 

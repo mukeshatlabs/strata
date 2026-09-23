@@ -47,13 +47,32 @@ def link(obligation_id="OBL-3", confidence=0.95, rationale_status="verified"):
 
 
 def tasks_for(change, g, obligation_change=None, links=None, verification=None):
-    """Build the tasks a gold routing row implies."""
+    """Build the tasks a gold routing row implies, the way the pipeline does.
+
+    A paragraph altering two obligations produces ONE CLAIM PER OBLIGATION, not
+    one claim with two links: that is what extraction actually returns for CH-7.
+    Each claim's tasks are created separately and then merged for the change, so
+    these tests exercise the cross-claim merge rather than the within-claim one.
+    """
     kind = obligation_change or CHANGE_KIND[change]
     obligations = CHANGE_OBLIGATIONS.get(change, [])
-    c = claim(kind)
-    ls = links if links is not None else [link(o) for o in obligations]
-    impacts = [i for o in obligations for i in graph.propagate(g, o)]
-    return routing.create_tasks(c, verification or verified(), ls, impacts, g)
+    built = []
+    if links is not None:
+        c = claim(kind, claim_id="ch:k1")
+        impacts = [i for l in links for i in graph.propagate(g, l.obligation_id)]
+        built = routing.create_tasks(c, verification or verified(), links, impacts, g)
+    else:
+        for index, obligation in enumerate(obligations, start=1):
+            c = claim(kind, claim_id=f"ch:k{index}")
+            ls = [link(obligation)]
+            impacts = graph.propagate(g, obligation)
+            built.extend(
+                routing.create_tasks(c, verification or verified(), ls, impacts, g)
+            )
+        if not obligations:
+            c = claim(kind, claim_id="ch:k1")
+            built = routing.create_tasks(c, verification or verified(), [], [], g)
+    return routing.merge_tasks(built)
 
 
 # --- rule order -----------------------------------------------------------
@@ -185,7 +204,7 @@ def test_removed_obligation_gets_the_retire_action(g):
 
 
 def test_one_task_per_node_when_two_obligations_reach_it(g):
-    """IM-2: PRJ-1 and DOC-1 are reached from both OBL-3 and OBL-4."""
+    """IM-2: PRJ-1 and DOC-1 are reached from OBL-3 and OBL-4, by separate claims."""
     tasks = tasks_for("CH-7", g)
     node_ids = [t.node_id for t in tasks]
     assert len(node_ids) == len(set(node_ids)), "duplicate task for one node"
@@ -205,11 +224,28 @@ def test_every_path_that_reached_a_node_is_kept(g):
     assert tasks["DOC-2"].paths == [["OBL-3", "DOC-2"]], "only OBL-3 reaches DOC-2"
 
 
-def test_task_ids_are_unique_and_name_the_node(g):
+def test_task_ids_are_unique_and_name_the_change_and_node(g):
     tasks = tasks_for("CH-7", g)
     ids = [t.task_id for t in tasks]
     assert len(ids) == len(set(ids))
     assert all(t.node_id in t.task_id for t in tasks)
+    assert all(t.task_id.startswith(t.change_id) for t in tasks)
+
+
+def test_a_merged_task_records_every_claim_behind_it(g):
+    """Approving one merged task must accept both claims that produced it."""
+    tasks = {t.node_id: t for t in tasks_for("CH-7", g)}
+    assert sorted(tasks["PRJ-1"].claim_ids) == ["ch:k1", "ch:k2"]
+    assert tasks["DOC-2"].claim_ids == ["ch:k1"], "only OBL-3's claim reaches DOC-2"
+
+
+def test_expert_tasks_are_not_merged(g):
+    """Each escalated claim keeps its own reason."""
+    one = routing.create_tasks(claim("created", "ch:k1"), verified(), [], [], g)
+    two = routing.create_tasks(claim("created", "ch:k2"), verified(), [], [], g)
+    merged = routing.merge_tasks(one + two)
+    assert len(merged) == 2
+    assert {t.queue for t in merged} == {"expert"}
 
 
 # --- escalated claims -----------------------------------------------------

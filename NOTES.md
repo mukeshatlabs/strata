@@ -621,3 +621,52 @@ that, and is worth keeping as the check.
 The clone contains no `.env`, no `strata.db` and no `.venv`, so the gitignore from task
 1 held for the whole build. `.env.example` is the only environment file present, which
 is what a reviewer needs to know a key is optional.
+
+## Post-build: duplicate tasks across a change's claims
+
+**Found by reading WALKTHROUGH.md against the code**, after the build was finished and
+pushed. The document claimed `c:v1->v2:p12` returns one claim. It returns two, one per
+obligation altered, which is what PRD R3.4 asks for and what gold CH-7 expects. Checking
+that sentence turned up a real defect behind it.
+
+`routing.create_tasks` is called per claim, so the dedupe added in task 10 only ever saw
+one claim's impacts. CH-7's two claims each reached PRJ-1, DOC-1 and DOC-4 through their
+own obligation, and each produced its own task:
+
+```
+c:v1->v2:p12:k1:PRJ-1   paths=[[OBL-3, PRJ-1]]
+c:v1->v2:p12:k2:PRJ-1   paths=[[OBL-4, PRJ-1]]
+```
+
+Luis Ortega saw Riverside twice for one paragraph change. Gold IM-2 says this in as many
+words: "PRJ-1 and DOC-1 reached twice across IM-1 and IM-2 should produce one task each,
+not duplicates."
+
+**The lesson: the tests passed on a shape the data never produces.** Both dedupe tests,
+in task 10 and task 12, built a *single* claim carrying two links. That exercises the
+within-claim merge, which worked, and says nothing about the case that actually occurs.
+The task 12 test even used a stub whose mapping response returned both obligations for
+one claim, so the stub encoded the wrong shape and then confirmed it. Neither test was
+wrong about its assertion; both were wrong about the input.
+
+Both are rewritten. `tests/test_routing.py` now builds one claim per obligation and
+merges, with a docstring saying why. `tests/test_pipeline.py` drives the real cache
+instead of a stub for this case, asserts CH-7 yields exactly two claims, and then asserts
+one task per node. A stub that can encode a shape the pipeline cannot produce is worth
+less than the recorded responses, wherever the recorded responses will do.
+
+**The fix.** `routing.merge_tasks` merges a change's owner tasks by node: the task id
+becomes `<change_id>:<node_id>`, `paths` and `obligation_ids` union, and a new
+`claim_ids` field records every claim behind the task so `events._accept` accepts all of
+them on approval. Expert tasks are not merged, because each carries its own claim's
+escalation reason. `pipeline.run_version` now collects a change's tasks across its
+claims, merges, and only then appends `task_created`, so the log holds merged tasks and a
+replay of an older log is unaffected.
+
+The review page follows: tasks hang off the change, not the claim, because a merged task
+has no single owning claim. Claims are shown above as the evidence, tasks below as the
+work.
+
+Eval scores are unchanged, which is expected: the metrics measure extraction,
+verification, mapping and impacts, none of which this touches. v1 to v2 goes from 11
+tasks to 8.
