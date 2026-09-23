@@ -313,18 +313,26 @@ def test_review_warns_while_a_new_obligation_item_is_open(client):
 
 
 def _resolve_new_obligation_items(client) -> int:
-    """Resolve every new-obligation item. The penalty paragraph raises two."""
+    """Resolve every new-obligation item the way the queue offers it.
+
+    The first creates the obligation; the rest link to it, because the penalty
+    paragraph raises two claims about one new duty.
+    """
     conn = db.connect(app_module.DB_PATH)
     tasks = [t for t in events.replay(conn, PROJECT).open_tasks()
              if t.get("reason") == "new_obligation"]
     conn.close()
     assert tasks, "expected at least one new-obligation item"
-    for task in tasks:
-        client.post(f"/tasks/{task['task_id']}/create-obligation", data={
-            "node_id": pipeline.OBL_12["id"], "name": pipeline.OBL_12["name"],
-            "text": pipeline.OBL_12["text"], "owner": pipeline.OBL_12["owner"],
-            "source_para": pipeline.OBL_12["source_para"],
-        })
+    for index, task in enumerate(tasks):
+        if index == 0:
+            client.post(f"/tasks/{task['task_id']}/create-obligation", data={
+                "node_id": pipeline.OBL_12["id"], "name": pipeline.OBL_12["name"],
+                "text": pipeline.OBL_12["text"], "owner": pipeline.OBL_12["owner"],
+                "source_para": pipeline.OBL_12["source_para"],
+            })
+        else:
+            client.post(f"/tasks/{task['task_id']}/link-obligation",
+                        data={"obligation_id": pipeline.OBL_12["id"]})
     return len(tasks)
 
 
@@ -352,3 +360,51 @@ def test_a_failed_run_can_be_retried_after_resolving(client, monkeypatch):
     ids = [c["claim_id"] for c in claims]
     assert len(ids) == len(set(ids)), "the failed attempt was appended twice"
     conn.close()
+
+
+def test_queue_offers_create_before_any_obligation_exists(client):
+    body = client.get(f"/projects/{PROJECT}/queue").text
+    assert "create-obligation" in body
+    assert "link-obligation" not in body, "nothing to link to yet"
+
+
+def test_queue_offers_linking_once_an_obligation_exists(client):
+    conn = db.connect(app_module.DB_PATH)
+    first = next(t for t in events.replay(conn, PROJECT).open_tasks()
+                 if t.get("reason") == "new_obligation")
+    conn.close()
+    client.post(f"/tasks/{first['task_id']}/create-obligation", data={
+        "node_id": pipeline.OBL_12["id"], "name": pipeline.OBL_12["name"],
+        "text": pipeline.OBL_12["text"], "owner": pipeline.OBL_12["owner"],
+        "source_para": pipeline.OBL_12["source_para"],
+    })
+    body = client.get(f"/projects/{PROJECT}/queue").text
+    assert "link-obligation" in body
+    assert "OBL-12 — Penalty for a missed study deadline" in body
+    assert "genuinely separate duty" in body, "creating another is still offered"
+
+
+def test_linking_resolves_without_a_second_node(client):
+    resolved = _resolve_new_obligation_items(client)
+    assert resolved == 2
+
+    conn = db.connect(app_module.DB_PATH)
+    state = events.replay(conn, PROJECT)
+    created = [n["id"] for n in state.created_nodes]
+    assert created == ["OBL-12"], f"one node, not one per item: {created}"
+    assert not [t for t in state.open_tasks() if t.get("reason") == "new_obligation"]
+
+    linked = [e for e in events.history(conn, PROJECT)
+              if e.type == "task_approved" and e.payload.get("obligation_id")]
+    assert len(linked) == 1
+    assert linked[0].payload["obligation_id"] == "OBL-12"
+    assert linked[0].actor == "expert"
+    conn.close()
+
+
+def test_link_then_next_version_runs_from_cache(client, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    _resolve_new_obligation_items(client)
+    r = client.post(f"/projects/{PROJECT}/versions", data={"version_id": "v3"},
+                    follow_redirects=False)
+    assert r.status_code == 303, "linking must keep the obligation list the cache assumes"

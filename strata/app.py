@@ -149,8 +149,16 @@ def queue(request: Request, project_id: str):
         [n for n in company.nodes.values() if n.type == "person"],
         key=lambda n: n.node_id,
     )
+    # Obligations an expert has already created in this project. When one exists,
+    # a second new-obligation item should normally be linked to it rather than
+    # creating a second node for the same paragraph.
+    created = []
+    for node in state.created_nodes:
+        if node.get("type") == "obligation" and node["id"] not in {c["id"] for c in created}:
+            created.append(node)
     return templates.TemplateResponse(request, "queue.html", {
         "project_id": project_id, "state": state, "items": items, "people": people,
+        "created": created,
         # The form is prefilled with the obligation make live created, so the
         # default path through the UI produces the same v3 mapping prompts that
         # the committed cache holds (see NOTES, task 15).
@@ -264,6 +272,24 @@ def create_obligation(
     }, actor="expert")
     _append(conn, PROJECT, "task_approved", task_id,
             {"task_id": task_id, "claim_id": task.get("claim_id")}, actor="expert")
+    return RedirectResponse(f"/projects/{PROJECT}/queue", status_code=303)
+
+
+@app.post("/tasks/{task_id}/link-obligation")
+def link_obligation(task_id: str, obligation_id: str = Form(...)):
+    """Resolve a new-obligation item against an obligation already created.
+
+    The penalty paragraph raises two created claims, and both describe the same
+    new duty from different angles. Creating a second node for the second item
+    would duplicate the obligation and change the candidate list the next
+    version maps against, which the recorded cache does not hold.
+    """
+    conn = connect()
+    task, _ = _task(conn, task_id)
+    _append(conn, PROJECT, "task_approved", task_id, {
+        "task_id": task_id, "claim_id": task.get("claim_id"),
+        "claim_ids": task.get("claim_ids"), "obligation_id": obligation_id,
+    }, actor="expert")
     return RedirectResponse(f"/projects/{PROJECT}/queue", status_code=303)
 
 

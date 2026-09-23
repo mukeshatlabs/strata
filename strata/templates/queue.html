@@ -26,10 +26,29 @@
   <p class="meta">recommended: {{ item.task.recommended_action }}</p>
 
   {% if item.task.reason == 'new_obligation' and item.task.status == 'open' %}
+
+  {% if created %}
+  <form method="post" action="/tasks/{{ item.task.task_id }}/link-obligation">
+    <p class="meta">An obligation has already been created for this proceeding. If this
+      item describes the same duty, link it rather than creating a second node.</p>
+    <select name="obligation_id" required>
+      {% for node in created %}
+      <option value="{{ node.id }}">{{ node.id }} — {{ node.name }}</option>
+      {% endfor %}
+    </select>
+    <button class="primary" type="submit">Link to this obligation and resolve</button>
+  </form>
+  <p class="meta" style="margin-top:14px">Or, if this is a genuinely separate duty,
+    create another obligation. That changes the candidate list the next version maps
+    against, so the next version will need an API key rather than the cache.</p>
+  {% endif %}
+
   <form method="post" action="/tasks/{{ item.task.task_id }}/create-obligation">
+    {% if not created %}
     <p class="meta">Create the obligation this change introduces. The fields are
       prefilled with the values the recorded run used; editing them is fine, but
       the next version then needs an API key rather than the cache.</p>
+    {% endif %}
     <table>
       <tr><th>ID</th><td>
         <input name="node_id" value="{{ suggested.id }}" required></td></tr>

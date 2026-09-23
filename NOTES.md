@@ -706,3 +706,26 @@ penalty itself and the bar on recovering it from ratepayers, so there are two
 new-obligation items, not one. A test that resolved only the first left the warning
 standing and caught its own wrong assumption. Both are defensible readings of the
 paragraph and an expert decides whether they are one obligation or two.
+
+## Post-build: linking a second new-obligation item instead of duplicating
+
+The v2 penalty paragraph raises two `new_obligation` items, and the create-obligation
+form was offered for both, prefilled with the same OBL-12 values. Submitting both wrote
+two `node_created` events for one ID. The graph was unaffected, since the second
+overwrote the first with identical values, but the log claimed the obligation was
+created twice, and the alternative a reviewer would naturally reach for, giving the
+second item its own ID, silently changed the obligation list the next version maps
+against and broke the cache.
+
+The queue now offers `POST /tasks/{id}/link-obligation` whenever an obligation has
+already been created in the project: a select of those obligations and one button that
+resolves the item by approving it with the obligation recorded in the payload. No second
+node, and the candidate list the recorded v3 responses assume stays intact. Creating a
+separate obligation is still offered underneath, with a line saying it will need an API
+key for the next version, because two claims on one paragraph genuinely can be two
+duties and that is the expert's call to make, not the tool's.
+
+`_resolve_new_obligation_items` in the app tests now mirrors the UI: create on the
+first, link on the rest. `test_linking_resolves_without_a_second_node` asserts exactly
+one `created_nodes` entry, and `test_link_then_next_version_runs_from_cache` asserts the
+303, so the tightening is pinned by the property it exists for.

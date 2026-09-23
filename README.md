@@ -65,7 +65,10 @@ cache as they stood at that commit.
 2. Open the expert queue. The v2 penalty paragraph is there as `new_obligation`,
    because no existing obligation can be the right link for a duty that did not exist.
 3. Create the obligation with the prefilled form. That writes a `node_created` event;
-   the company JSON file is never modified.
+   the company JSON file is never modified. The penalty paragraph raises two items,
+   because the model reads the penalty and the bar on recovering it from ratepayers as
+   two claims. Create the obligation on the first; the second then offers to link to the
+   obligation you just made, which is the right answer when both describe one duty.
 4. Back on the review page, **Load next version**. The v3 change to the same penalty now
    links to the obligation you just created.
 5. Open the audit page and roll back to an earlier sequence number. The review page
