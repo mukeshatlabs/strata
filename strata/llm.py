@@ -23,15 +23,24 @@ class CacheMiss(RuntimeError):
     """A call was not in the cache and no API key was available to make it."""
 
 
-def cache_key(messages: list, prompt_version: str, model: str = MODEL) -> str:
+def cache_key(
+    messages: list, prompt_version: str, schema: dict, model: str = MODEL
+) -> str:
     """Return the SHA-256 hex digest identifying this call.
 
-    The schema is deliberately not part of the key (TDD 3.10 names model,
-    prompt version, and messages). Editing a response schema therefore requires
-    bumping prompt_version, or the stale cached response is returned.
+    Covers the model, the prompt version, the message list, and the response
+    schema. The schema is included because it changes the shape of the response:
+    without it, editing a schema silently returns a cached response in the old
+    shape. The cost is that a schema edit invalidates those entries and needs a
+    live run to record them again, which is the cheaper failure.
     """
     payload = json.dumps(
-        {"model": model, "prompt_version": prompt_version, "messages": messages},
+        {
+            "model": model,
+            "prompt_version": prompt_version,
+            "messages": messages,
+            "schema": schema,
+        },
         sort_keys=True,
         ensure_ascii=False,
     )
@@ -80,7 +89,7 @@ def call(name: str, messages: list, schema: dict, prompt_version: str) -> dict:
     On a miss, calls the API if ANTHROPIC_API_KEY is set and records the result;
     otherwise raises CacheMiss naming the call and its key.
     """
-    key = cache_key(messages, prompt_version)
+    key = cache_key(messages, prompt_version, schema)
     path = cache_path(key)
     if path.exists():
         return json.loads(path.read_text(encoding="utf-8"))["response"]

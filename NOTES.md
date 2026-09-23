@@ -98,11 +98,14 @@ model. Reproducibility across runs therefore comes from the committed cache and
 nothing else, which is the reason TDD 3.10 commits it. A live run is not expected to
 reproduce a previous live run byte for byte.
 
-**Schema is not in the cache key.** TDD 3.10 defines the key as model + prompt version
-+ messages. Hashing the schema as well would mean a cosmetic schema edit invalidates
-the whole committed cache and needs a paid live run to repopulate. The consequence is
-that editing a response schema requires bumping `prompt_version`; this is stated in the
-`cache_key` docstring, and `test_cache_key_is_not_affected_by_schema` pins it.
+**Schema is in the cache key.** First written the other way, following TDD 3.10's
+literal list of model + prompt version + messages, on the argument that hashing the
+schema makes a cosmetic edit cost a paid live run. Reversed on review: a stale cache
+entry is worse than an occasional re-run, because a schema edit would otherwise return
+a response in the old shape and nothing would report it, whereas a re-run is visible
+and bounded. The key now covers model, prompt version, messages, and schema. TDD 3.10
+updated in the same commit. `test_schema_edit_does_not_return_the_old_cached_response`
+pins the end-to-end guarantee, not just the hash.
 
 **Key detection.** `ANTHROPIC_API_KEY` only. The SDK would also resolve an
 `ant auth login` profile, so an unset variable does not strictly mean no credentials,

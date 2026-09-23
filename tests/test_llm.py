@@ -37,7 +37,7 @@ def store(cache, key, response):
 
 
 def test_cache_hit_returns_stored_response(cache, no_network):
-    key = llm.cache_key(MESSAGES, "extract/v1")
+    key = llm.cache_key(MESSAGES, "extract/v1", SCHEMA)
     store(cache, key, {"summary": "Deadline shortened."})
     out = llm.call("extract_claims", MESSAGES, SCHEMA, "extract/v1")
     assert out == {"summary": "Deadline shortened."}
@@ -48,41 +48,64 @@ def test_cache_miss_without_key_raises_naming_the_call(cache, no_network):
         llm.call("extract_claims", MESSAGES, SCHEMA, "extract/v1")
     message = str(err.value)
     assert "extract_claims" in message
-    assert llm.cache_key(MESSAGES, "extract/v1") in message
+    assert llm.cache_key(MESSAGES, "extract/v1", SCHEMA) in message
     assert "ANTHROPIC_API_KEY" in message
 
 
 def test_hash_changes_with_prompt_version():
-    a = llm.cache_key(MESSAGES, "extract/v1")
-    b = llm.cache_key(MESSAGES, "extract/v2")
+    a = llm.cache_key(MESSAGES, "extract/v1", SCHEMA)
+    b = llm.cache_key(MESSAGES, "extract/v2", SCHEMA)
     assert a != b
 
 
 def test_hash_changes_with_messages():
     other = [{"role": "user", "content": "Summarize paragraph v2:p13."}]
-    assert llm.cache_key(MESSAGES, "extract/v1") != llm.cache_key(other, "extract/v1")
+    assert llm.cache_key(MESSAGES, "extract/v1", SCHEMA) != llm.cache_key(other, "extract/v1", SCHEMA)
 
 
 def test_hash_changes_with_model():
-    assert llm.cache_key(MESSAGES, "extract/v1") != llm.cache_key(
-        MESSAGES, "extract/v1", model="claude-sonnet-5"
+    assert llm.cache_key(MESSAGES, "extract/v1", SCHEMA) != llm.cache_key(
+        MESSAGES, "extract/v1", SCHEMA, model="claude-sonnet-5"
     )
 
 
 def test_hash_is_stable_across_calls_and_dict_order():
-    a = llm.cache_key([{"role": "user", "content": "x"}], "v1")
-    b = llm.cache_key([{"content": "x", "role": "user"}], "v1")
-    assert a == b == llm.cache_key([{"role": "user", "content": "x"}], "v1")
+    a = llm.cache_key([{"role": "user", "content": "x"}], "v1", SCHEMA)
+    b = llm.cache_key([{"content": "x", "role": "user"}], "v1", SCHEMA)
+    assert a == b == llm.cache_key([{"role": "user", "content": "x"}], "v1", SCHEMA)
     assert len(a) == 64
 
 
-def test_cache_key_is_not_affected_by_schema(cache):
-    """The schema is not hashed; a schema edit needs a prompt_version bump."""
-    assert llm.cache_key(MESSAGES, "extract/v1") == llm.cache_key(MESSAGES, "extract/v1")
+def test_hash_changes_with_schema(cache):
+    """A schema edit must miss the cache, not return a response in the old shape."""
+    wider = {
+        "type": "object",
+        "properties": {"summary": {"type": "string"}, "confidence": {"type": "number"}},
+        "required": ["summary", "confidence"],
+        "additionalProperties": False,
+    }
+    assert llm.cache_key(MESSAGES, "extract/v1", SCHEMA) != llm.cache_key(
+        MESSAGES, "extract/v1", wider
+    )
+
+
+def test_schema_edit_does_not_return_the_old_cached_response(cache, no_network):
+    """The end-to-end guarantee: same messages, new schema, no stale hit."""
+    store(cache, llm.cache_key(MESSAGES, "extract/v1", SCHEMA), {"summary": "old"})
+    assert llm.call("extract_claims", MESSAGES, SCHEMA, "extract/v1") == {"summary": "old"}
+
+    wider = {
+        "type": "object",
+        "properties": {"summary": {"type": "string"}, "confidence": {"type": "number"}},
+        "required": ["summary", "confidence"],
+        "additionalProperties": False,
+    }
+    with pytest.raises(llm.CacheMiss):
+        llm.call("extract_claims", MESSAGES, wider, "extract/v1")
 
 
 def test_cache_path_is_named_by_hash(cache):
-    key = llm.cache_key(MESSAGES, "extract/v1")
+    key = llm.cache_key(MESSAGES, "extract/v1", SCHEMA)
     assert llm.cache_path(key) == cache / f"{key}.json"
 
 
@@ -120,7 +143,7 @@ def test_live_call_writes_request_and_response(cache, monkeypatch):
     assert calls["messages"] == MESSAGES
     assert "temperature" not in calls, "sampling params are rejected on Opus 5"
 
-    written = json.loads(llm.cache_path(llm.cache_key(MESSAGES, "extract/v1")).read_text())
+    written = json.loads(llm.cache_path(llm.cache_key(MESSAGES, "extract/v1", SCHEMA)).read_text())
     assert written["name"] == "extract_claims"
     assert written["model"] == llm.MODEL
     assert written["prompt_version"] == "extract/v1"

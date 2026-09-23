@@ -468,7 +468,11 @@ instead of selecting it, which at this size takes milliseconds.
 ### 3.10 The LLM client and cache
 
 `llm.call(name, messages, schema) -> dict` computes a SHA-256 hash of the model name,
-the prompt version, and the full message list. If `data/llm_cache/<hash>.json` exists,
+the prompt version, the full message list, and the response schema. The schema is part
+of the key because it determines the shape of the response: if it were excluded, editing
+a schema would return a cached response in the old shape, and nothing in the system
+would report it. The cost is that a schema edit invalidates those entries and needs a
+live run to record them again, which is the cheaper of the two failures. If `data/llm_cache/<hash>.json` exists,
 its contents are returned. Otherwise, if `ANTHROPIC_API_KEY` is set, the API is called
 with the structured-output schema, the response is written to the cache, and returned.
 If the key is not set and the cache misses, the call raises an error naming the call
