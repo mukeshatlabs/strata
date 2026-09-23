@@ -58,3 +58,25 @@ side means "reject" or "the whole paragraph is the changed region".
 **Volume.** 14 changes for v1->v2 and 13 for v2->v3, against the 11 and 8 rows in gold.
 The extra ones are real ("revised" inserted, hearing dates, footnote renumbering) and
 are the not-material cases the model has to reject in task 6.
+
+## Decision for task 7: which side a quote may come from
+
+Settled before building the verifier, and TDD 3.4 is to be updated when task 7 lands.
+
+For a `modified` change the quote may come from either the to-paragraph or the
+from-paragraph. The verifier reads `quote_para_id`, checks it names one of the two
+paragraphs the change spans, and requires the match to overlap *that side's* spans:
+`spans_to` when the quote names `para_id_to`, `spans_from` when it names
+`para_id_from`. A quote naming any other paragraph is `wrong_paragraph`.
+
+An `added` change has only a to-side and a `removed` change only a from-side, so for
+those the quote must name that paragraph and overlap that side's spans.
+
+This resolves the `c:v2->v3:p7` case from task 4. That modification is a pure word
+deletion ("The proposed rule applies" -> "The rule applies"), so `spans_to` is empty
+and `spans_from` is `[(4, 13)]`. A quote naming `v3:p7` can overlap nothing and is
+rejected; a quote naming `v2:p7` and containing "proposed" verifies. The changed text
+exists only on the from-side, and the rule now says so rather than rejecting both.
+
+Gold VF-7 is the same shape from the other direction: a removal whose quote must be
+verified against the from-version, since the text is gone from v3.
