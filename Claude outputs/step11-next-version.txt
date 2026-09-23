@@ -1,0 +1,114 @@
+STEP 11: LOAD THE NEXT VERSION (v2 -> v3)
+Same pipeline (steps 2 to 9), run on top of the state v2 left behind.
+Triggered by the "Load next version" button (POST /projects/{id}/versions).
+
+======================= WHAT HAPPENS BETWEEN v2 AND v3 ========================
+
+Before clicking, in the expert queue:
+  Create obligation OBL-12 from the prefilled form
+    -> node_created  {id: OBL-12, type: obligation, name: Study deadline penalty,
+                      text: ..., owner: P-2, source_para: v2:p17}
+    -> edge_created  {from: DOC-1, to: OBL-12, type: implements}
+    -> the expert task c:v1->v2:+p17:k1 is resolved
+
+Optionally, on the review page: approve, edit, or escalate any of the six deadline
+tasks. Each is one event.
+
+====================== THE v2 -> v3 RUN, STAGE BY STAGE =======================
+
+Step 2, diff.  13 changes. The ones that matter:
+  c:v2->v3:p1        caption -> FINAL ORDER ADOPTING RULE          (status signal)
+  c:v2->v3:p8        "proposed for adoption" -> "adopted"           (status signal)
+  c:v2->v3:p7        "The proposed rule applies" -> "The rule applies"  (pure deletion)
+  c:v2->v3:-p14      Public queue paragraph REMOVED                 (material)
+  c:v2->v3:p15       quarterly report -> semi-annual, absorbs queue data  (material;
+                     renumbered v2:p15 -> v3:p14 after the removal)
+  c:v2->v3:p17       penalty softened: "shall pay $500/day" -> "may, after written
+                     notice and a 15-business-day cure period, assess up to $500/day"
+                     (material; renumbered v2:p17 -> v3:p16)
+  c:v2->v3:p21       comments paragraph -> "Effective date. This Order ... effective
+                     January 1, 2027."                              (status signal)
+
+Step 3, extract.  13 calls, 19 claims. version_status comes back "final" on 14 of
+them and "draft" on 1 (the header alone says final, but individual paragraphs
+without status language can look like a draft). The eval takes a majority per
+version and reports the split: v3 = final, 14-1.
+
+Step 4, verify.  18 verified, 1 rejected: c:v2->v3:p7, the deletion, quoted from
+the v3 side where spans_to is empty. quote_outside_changed_span.
+
+Step 5, route (first pass).
+  c:v2->v3:p7:k1      rejected quote      -> EXPERT, quote_outside_changed_span
+  c:v2->v3:-p14:k1    removed, material   -> continue
+  c:v2->v3:p15:k1     modified, material  -> continue
+  c:v2->v3:p17:k1     modified, material  -> continue   (+ one extra "created"
+                                             claim the model also produced for
+                                             this paragraph -> EXPERT, new_obligation;
+                                             a labelling difference, noted in evals)
+  status-signal and wording changes        -> recorded, no tasks
+
+Before each mapping call: override_for(change). No overrides in the log unless Dana
+edited a task in v2. If she had corrected, say, the DOC-2 link for the deadline
+change, and v3 re-edited that paragraph, her correction would be applied here and
+the model skipped. (v3 does not re-edit p12, so CH-14 emits no change at all and
+the v2 decisions simply stand.)
+
+Step 6, map.  The candidate list now has TWELVE obligations: the eleven from the
+JSON plus OBL-12 from the log.
+  -p14 (queue removed)    -> OBL-6  (public queue)
+  p15  (report changed)   -> OBL-7  (quarterly report), acceptable extra OBL-6
+  p17  (penalty softened) -> OBL-12 (the node the expert created)
+
+Step 7, propagate.
+  from OBL-6:  PRJ-2 (queue portal) [OBL-6, PRJ-2]
+               DOC-6 (customer FAQ) [OBL-6, DOC-6]
+               DOC-8 (portal spec)  [OBL-6, PRJ-2, DOC-8]   two hops
+  from OBL-7:  PRJ-3 (reporting automation), DOC-3 (compliance calendar)
+  from OBL-12: DOC-1 (procedures manual)  [OBL-12, DOC-1]   via the created edge
+
+Step 8, tasks.  Actions now use the (removed, *) rows for OBL-6's cluster:
+  PRJ-2  -> Sam   "Review whether the project is still required"
+            (a $340k portal for a queue the rule no longer requires)
+  DOC-6  -> Elena "Remove or revise the section that implements the retired
+            requirement"
+  DOC-8  -> Sam
+  OBL-6  -> Priya "Retire the obligation"
+  PRJ-3, DOC-3, OBL-7 -> Priya (modified)
+  OBL-12, DOC-1 -> Luis, Priya (modified)
+
+Step 9, events.  All appended after the v2 events. The audit page now shows both
+runs in one continuous log.
+
+============================== WHAT THE PAGES SHOW ============================
+
+Review page header: 27 changes · N owner tasks · 2 expert items
+  (the penalty item from v2, resolved, and the p7 deletion from v3)
+
+Expert queue: c:v2->v3:p7:k1, reason quote_outside_changed_span. A human reads it,
+sees it is the word "proposed" being dropped, and closes it. Nothing was lost;
+the rule is non-material.
+
+Audit page: one log, v2 events then any human events then v3 events. Roll back to
+the last v2 event and the v3 results vanish from the review page while staying in
+the audit list.
+
+=========================== THE THREE THINGS TO SAY ===========================
+
+1. The graph grew. OBL-12 exists because an expert created it through an event.
+   The JSON on disk is unchanged. v3's penalty change links to it and propagates
+   through the edge the expert added.
+
+2. Human decisions carry forward. Anything Dana approved or corrected in v2 is in
+   the log when v3 runs, and a correction on the same edit or the same paragraph
+   text is applied before the model is asked.
+
+3. Finality was detected from the text. The header says final, but the model was
+   never told to trust it; it judged from the caption, "are adopted", and the
+   effective-date sentence, and the eval compares its majority answer to the header.
+
+============================== KNOWN LIMITATION ===============================
+
+The v3 mapping prompt contains OBL-12's name and text. The cached responses were
+recorded with the prefilled values. Changing them before loading v3 needs an API
+key. In production the cache would be per company and always live; here it is a
+reproducibility device for reviewers without a key.

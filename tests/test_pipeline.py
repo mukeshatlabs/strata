@@ -322,3 +322,22 @@ def test_v1_to_v2_end_to_end_from_cache(conn, monkeypatch):
     types = [e.type for e in events.history(conn, PROJECT)]
     assert types.count("task_created") == len(run["tasks"])
     assert "claim_verified" in types
+
+
+def test_a_failed_run_writes_nothing(conn, monkeypatch):
+    """run_version is all or nothing: a mid-run failure leaves no partial claims."""
+    calls = []
+
+    def fake_call(name, messages, schema, prompt_version):
+        calls.append(name)
+        if len(calls) > 4:
+            raise llm.CacheMiss("simulated miss part way through the run")
+        return NO_CLAIMS if "New version, paragraph [v2:p12]:" not in messages[0]["content"] \
+            else CH7_CLAIMS
+
+    monkeypatch.setattr(llm, "call", fake_call)
+    with pytest.raises(llm.CacheMiss):
+        pipeline.run_version(conn, PROJECT, "v2")
+
+    assert events.history(conn, PROJECT) == [], "partial events survived the failure"
+    assert events.replay(conn, PROJECT).claims == {}

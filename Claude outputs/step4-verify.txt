@@ -1,0 +1,109 @@
+STEP 4: VERIFY (strata/verify.py, functions: normalize, find_quote, verify_claim)
+No model. Pure code. Runs once per claim.
+
+============================== THE SIX CHECKS, IN ORDER =======================
+
+Input: a Claim (quote, quote_para_id), the paragraphs, and the Change it belongs to.
+
+1. Which paragraphs may this claim quote from?
+     modified change  -> para_id_to OR para_id_from
+     added change     -> para_id_to only
+     removed change   -> para_id_from only
+   If quote_para_id is not one of those  ->  REJECTED, reason wrong_paragraph.
+   (Runs before any searching. A real quote from the neighbouring paragraph is
+   caught here, not by a failed search.)
+
+2. Normalize both the quote and the paragraph text:
+     collapse runs of whitespace to one space
+     curly quotes -> straight quotes
+     en/em dashes -> hyphen
+     non-breaking space -> space
+   Keep an offset map so a position in the normalized text can be mapped back to
+   the original text.
+
+3. Exact search for the normalized quote in the normalized paragraph.
+   Found  ->  candidate match, edit_distance 0.
+
+4. If not found: slide a window the length of the quote across the paragraph and
+   compute Levenshtein distance at each offset. Best window with distance
+   <= max(3, len(quote) // 25) is a candidate, status "near", distance recorded.
+   (100-char quote: 4 edits allowed. A dropped comma passes; a paraphrase fails.)
+   Nothing within threshold  ->  REJECTED, reason quote_not_found.
+
+5. Map the candidate back to original offsets (match_start, match_end).
+   Does [match_start, match_end) overlap any changed span on the quoted side?
+     quoted para_id_to   -> compare against change.spans_to
+     quoted para_id_from -> compare against change.spans_from
+   No overlap  ->  REJECTED, reason quote_outside_changed_span.
+
+6. Otherwise  ->  VERIFIED (distance 0) or NEAR (distance > 0).
+
+Output: Verification(claim_id, status, match_start, match_end, edit_distance,
+                     overlaps_change, reason)
+
+======================= THE DEADLINE CLAIM, WALKED THROUGH ====================
+
+Claim k1: quote = "shall complete the interconnection study for a small storage
+                   resource within thirty (30) business days"
+          quote_para_id = "v2:p12"
+Change c:v1->v2:p12: para_id_to = v2:p12, spans_to = [(117,129), (260,270)]
+
+1. modified change; v2:p12 is para_id_to  ->  allowed.
+2. normalize (nothing changes; the file is plain ASCII).
+3. exact search in v2:p12  ->  found at 18.
+5. match = [18, 118). spans_to[0] = (117, 129). 18 <= 117 < 118  ->  overlap.
+6. VERIFIED, exact match at 18, distance 0.
+
+This is what the review page shows as:  [VERIFIED]  v2:p12 · exact match at 18
+
+===================== THE EIGHT GOLD CASES (tests/test_verify.py) =============
+
+VF-1  same quote as above                          -> verified, distance 0
+VF-2  same quote with a trailing period            -> near, distance 1
+                                                       (window found at 18, not at 0)
+VF-3  "shall have thirty (30) days from the date of the notice to cure"
+      claimed from v2:p12                          -> rejected, quote_not_found
+      (that sentence lives in v2:p11; the model was tempted by "thirty (30)")
+VF-4  the same quote claimed from v2:p11           -> rejected, wrong_paragraph
+      (real text, real paragraph, but not a paragraph this change touches;
+       caught at check 1 before any search)
+VF-5  "Study completion. Each electric utility" from v2:p12
+                                                   -> rejected, quote_outside_changed_span
+      (real text, right paragraph, but characters 0-38 don't reach span (117,129))
+VF-6  "the study deadline is shortened to 30 business days"
+                                                   -> rejected, quote_not_found
+      (a paraphrase; Levenshtein distance far above threshold)
+VF-7  "maintain on its public website a queue of pending interconnection requests"
+      from v2:p14 for the REMOVAL change c:v2->v3:-p14
+                                                   -> verified
+      (removal: only the from-side exists; quote checked against v2:p14 and
+       spans_from)
+VF-8  the k1 quote against a paragraph rewritten with curly quotes, a non-breaking
+      space, and a doubled space               -> verified
+      (normalization makes them equal; the offset map lands match_start on the
+       right original character)
+
+==================== THE ONE REAL REJECTION IN THE PROJECT ====================
+
+Change c:v2->v3:p7: "The proposed rule applies" -> "The rule applies".
+spans_from = [(4, 13)]  ("proposed ")      spans_to = []  (nothing added)
+
+Model quoted "The rule applies to each electric utility" from v3:p7.
+1. allowed (modified; v3:p7 is para_id_to).   3. found at 0.
+5. spans_to is empty; nothing to overlap.  ->  REJECTED, quote_outside_changed_span.
+Routed to the expert queue. Non-material anyway, so no work was lost.
+The right quote would have been "The proposed rule applies" from v2:p7.
+
+============================ WHY IT IS BUILT THIS WAY =========================
+
+Considered and rejected: asking the model to check its own citations in a second
+call (repeats the failure it is meant to catch); exact match only (curly quotes and
+line-wrap hyphens in real orders would reject correct quotes and teach users to
+ignore the badge).
+
+The wrong_paragraph check runs first because a quote that is real but from the
+wrong paragraph would otherwise fail as "not found", and the two mean different
+things to a reviewer.
+
+The verifier checks the evidence, not the interpretation. A verified quote with a
+wrong summary is possible; that is what the evals and the human review are for.

@@ -1,0 +1,122 @@
+STEP 10: SERVE THE PAGES (strata/app.py + strata/templates/)
+FastAPI routes; Jinja2 templates; uvicorn runs it. No JavaScript beyond form submission.
+Every GET calls events.replay and renders the State. Every POST appends one event and
+redirects back.
+
+================================ THE ROUTES ===================================
+
+  GET  /projects/{id}/review          review.html   the main page
+  GET  /projects/{id}/queue           queue.html    expert queue
+  GET  /projects/{id}/audit           audit.html    event list + rollback
+  GET  /projects/{id}/state?upto=N                  state as of event N (json)
+
+  POST /projects/{id}/versions                      load the next version, run pipeline
+  POST /tasks/{id}/approve                          append task_approved
+  POST /tasks/{id}/edit                             append task_edited (with signature
+                                                    and lineage keys computed here)
+  POST /tasks/{id}/escalate                         append task_escalated
+  POST /tasks/{id}/create-obligation                append node_created (+ edge_created)
+                                                    and resolve the expert task
+  POST /projects/{id}/rollback                      append rollback
+
+============================ REVIEW PAGE (review.html) ========================
+
+Header:   14 changes · 6 owner tasks · 1 expert item      [Load next version]
+
+Grouped BY CHANGE. For each change:
+
+  c:v1->v2:p12   modified · v1:p12 -> v2:p12
+    claims (evidence)
+      k1  Study completion deadline ... shortened from 45 to 30 business days.
+          obligation change: modified · material: True · version status: draft ·
+          model confidence 0.97
+          "Each electric utility shall complete the interconnection study ... within
+           thirty (30) business days of the date of the complete application."
+          [VERIFIED]  v2:p12 · exact match at 18
+          linked: OBL-3 (0.98, rationale verified)
+      k2  Written study results ... within 3 business days instead of 5.
+          [VERIFIED]  v2:p12 · exact match at 231
+          linked: OBL-4 (0.96, rationale verified)
+    tasks (work)
+      Node    Paths                                  Action                     Assignee   status
+      OBL-3   OBL-3                                  Update the obligation...   P-2 Luis   open  [approve][edit][escalate]
+      OBL-4   OBL-4                                  Update the obligation...   P-2 Luis   open
+      PRJ-1   OBL-3 -> PRJ-1 ; OBL-4 -> PRJ-1        Review whether the...      P-2 Luis   open
+      DOC-1   OBL-3 -> DOC-1 ; OBL-4 -> DOC-1        Update the document...     P-3 Priya  open
+      DOC-2   OBL-3 -> DOC-2                         Update the document...     P-5 Karen  open
+      DOC-4   OBL-3 -> PRJ-1 -> DOC-4 ; OBL-4 -> ...  Update the document...     P-5 Karen  open
+
+  c:v1->v2:p4    modified · v1:p4 -> v2:p4
+      k1  Footnote reference renumbered from [^3] to [^2] ...
+          obligation change: none · material: False
+          "[^2]"   [VERIFIED]  v2:p4 · exact match at 214
+      (no tasks)
+
+  c:v1->v2:+p17  added · -> v2:p17
+      k1  New penalty of $500 per business day ...
+          obligation change: created · material: True
+          [VERIFIED]  v2:p17 · exact match at 0
+      -> in expert queue, reason new_obligation
+
+Badges: VERIFIED (green), NEAR with the edit distance (amber), REJECTED with the
+reason (red). Every claim shows one. Every task shows every path that reached it.
+
+============================= EXPERT QUEUE (queue.html) =======================
+
+  c:v1->v2:+p17:k1   reason: new_obligation    assignee P-8 (regulatory counsel)
+    "A utility that fails to complete a study within the period required by
+     paragraph 12 ... shall pay a penalty of five hundred dollars ($500) ..."
+    [VERIFIED] v2:p17
+
+    Create obligation  (prefilled from pipeline.OBL_12)
+      id:           OBL-12
+      name:         Study deadline penalty
+      text:         Pay a penalty of $500 per business day for each study not
+                    completed within the required period, as extended.
+      owner:        P-2
+      source_para:  v2:p17
+      implemented by: DOC-1                       [Create]
+
+After v3 is loaded, a second item appears here:
+  c:v2->v3:p7:k1     reason: quote_outside_changed_span   (the deletion case)
+
+The prefill matters: the v3 mapping prompt contains OBL-12's name and text, so the
+cached responses match only these values. Change them and loading v3 needs an API
+key. Stated in the README's known limitations.
+
+=============================== AUDIT PAGE (audit.html) =======================
+
+  rolled back to: (none)                    Roll back to seq: [____] [Roll back]
+
+  seq  ts        actor   type            subject
+   41  10:14:02  dana    task_approved   c:v1->v2:p12:DOC-1
+   40  10:13:55  dana    task_approved   c:v1->v2:p12:PRJ-1
+   ...
+   26  10:02:11  system  task_created    c:v1->v2:p12:PRJ-1
+   ...
+    1  10:02:09  system  claim_extracted c:v1->v2:p1:k1
+
+Newest first. Rollback events appear in the list like any other.
+GET /state?upto=26 shows the state before any approval.
+
+============================== WHAT make run DOES =============================
+
+  make reset      delete strata.db, ingest v1 v2 v3 and meridian.json
+  bootstrap       run_version(v2)  from cache, no key needed
+  uvicorn         serve on http://localhost:8000
+
+So the review page is populated on first load with the v1->v2 result.
+
+============================== DESIGN NOTES ===================================
+
+Server-rendered so the whole product stays in one language. Three templates, no
+client-side state. The verification badge, the confidence, and the path are on
+every item so the decisions that matter are visible in the product and not only
+in the code.
+
+Tasks hang off the change, not the claim, because a merged task has no single
+owning claim. Claims render above as evidence; tasks render below as work.
+
+The edit form is the R4.4 path: it looks up the change, computes the edit signature
+and the lineage key, and writes both into the task_edited payload. Without that the
+correction would be recorded but never found again.

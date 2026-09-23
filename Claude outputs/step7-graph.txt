@@ -1,0 +1,110 @@
+STEP 7: PROPAGATE THROUGH THE COMPANY GRAPH (strata/graph.py)
+Functions: load(conn, events) -> Graph;  propagate(graph, obligation_id, max_depth=3) -> list[Impact]
+No model. Runs once per linked obligation.
+
+============================= THE GRAPH AS LOADED =============================
+
+Nodes come from meridian.json plus any node_created events in the log.
+Edges come from meridian.json plus any edge_created events in the log.
+The JSON file on disk is never modified.
+
+Every edge in the file points TOWARD an obligation or a project:
+
+  PRJ-1 --depends_on-->  OBL-3          DOC-1 --implements--> OBL-1
+  PRJ-1 --depends_on-->  OBL-4          DOC-1 --implements--> OBL-2
+  PRJ-2 --depends_on-->  OBL-6          DOC-1 --implements--> OBL-3
+  PRJ-3 --depends_on-->  OBL-7          DOC-1 --implements--> OBL-4
+  PRJ-5 --depends_on-->  OBL-11         DOC-1 --implements--> OBL-8
+                                        DOC-2 --implements--> OBL-1
+  DOC-4 --references--> PRJ-1           DOC-2 --implements--> OBL-3
+  DOC-4 --references--> PRJ-4           DOC-3 --implements--> OBL-7
+  DOC-8 --references--> PRJ-2           DOC-3 --implements--> OBL-9
+                                        DOC-5 --implements--> OBL-5
+                                        DOC-6 --implements--> OBL-1
+                                        DOC-6 --implements--> OBL-6
+                                        DOC-7 --implements--> OBL-10
+
+Zero edges originate at an obligation. So "what does a change to OBL-3 affect" means
+"what points at OBL-3, and then what points at those". The walk follows edges in
+REVERSE. A test asserts that every edge in the file points toward an obligation or
+project, so a future edge in the other direction fails loudly instead of silently
+halving every impact set.
+
+Internally the graph is a dictionary of incoming adjacency lists:
+
+  incoming["OBL-3"] = [("PRJ-1", "depends_on"), ("DOC-1", "implements"),
+                       ("DOC-2", "implements")]
+  incoming["PRJ-1"] = [("DOC-4", "references")]
+  incoming["DOC-1"] = []
+
+======================= THE WALK FROM OBL-3 (deadline) ========================
+
+Breadth-first, depth limit 3, visited set to guard against cycles.
+
+  depth 0   start at OBL-3
+  depth 1   incoming[OBL-3]  ->  PRJ-1  path [OBL-3, PRJ-1]        via depends_on
+                              ->  DOC-1  path [OBL-3, DOC-1]        via implements
+                              ->  DOC-2  path [OBL-3, DOC-2]        via implements
+  depth 2   incoming[PRJ-1]  ->  DOC-4  path [OBL-3, PRJ-1, DOC-4]  via references
+            incoming[DOC-1]  ->  (nothing)
+            incoming[DOC-2]  ->  (nothing)
+  depth 3   incoming[DOC-4]  ->  (nothing)          walk ends
+
+Result, four Impacts:
+  Impact(node=PRJ-1, path=[OBL-3, PRJ-1],        edge_types=[depends_on],             owner=P-2, hops=1)
+  Impact(node=DOC-1, path=[OBL-3, DOC-1],        edge_types=[implements],             owner=P-3, hops=1)
+  Impact(node=DOC-2, path=[OBL-3, DOC-2],        edge_types=[implements],             owner=P-5, hops=1)
+  Impact(node=DOC-4, path=[OBL-3, PRJ-1, DOC-4], edge_types=[depends_on, references], owner=P-5, hops=2)
+
+The starting node (OBL-3 itself) is deliberately NOT in the result; step 8 adds a
+task for the obligation separately.
+
+DOC-4 is the two-hop case. Nothing in the rule mentions capital plans. The capital
+plan is affected because it references Riverside, and Riverside depends on the
+deadline. A person reading paragraph 12 would not think of the capital plan; the
+walk finds it because the edge was written down.
+
+======================= THE WALK FROM OBL-4 (delivery) ========================
+
+  depth 1   PRJ-1  [OBL-4, PRJ-1]     DOC-1  [OBL-4, DOC-1]
+  depth 2   DOC-4  [OBL-4, PRJ-1, DOC-4]
+
+PRJ-1, DOC-1 and DOC-4 are reached again by different paths. Both walks run; step 8
+merges the tasks. DOC-2 is not reached from OBL-4 (the tariff sheet does not
+implement the delivery duty), so DOC-2's task will carry only the OBL-3 path.
+
+=========================== NOT REACHED (gold NI-1) ===========================
+
+PRJ-4 (Northgate substation), PRJ-5 (rate case), DOC-5, DOC-7, OBL-10, OBL-11:
+no edge chain leads from OBL-3 or OBL-4 to any of them. The walk cannot reach
+something without an edge, which is also why a miss is explainable: "no edge".
+
+========================= AFTER OBL-12 IS CREATED (v3) ========================
+
+Expert creates OBL-12 (penalty) with edge DOC-1 --implements--> OBL-12, both as
+events. graph.load reads the JSON, then applies node_created and edge_created from
+the log:
+
+  incoming["OBL-12"] = [("DOC-1", "implements")]
+
+When v3 softens the penalty and mapping links to OBL-12, the walk reaches DOC-1 at
+one hop. The nodes table has no OBL-12 row and meridian.json is unchanged; the node
+exists because the log says so. A test asserts both.
+
+A rolled-back node_created leaves no node: graph.load consumes the effective
+event list (after rollback resolution), not the raw log.
+
+============================== WHY THIS DESIGN ================================
+
+Considered: three flat lists with the model deciding impacts. Rejected because the
+model would have to read every project and document on every change, the result
+would differ between runs, and a miss could not be explained.
+
+Considered: networkx or a graph database. Not needed at 32 nodes and 21 edges. The
+walk is about ten lines over a dictionary and can be read aloud. At thousands of
+nodes and deeper walks, networkx is the next step; the function signature would
+not change.
+
+The path is the explanation. Every impact on the review page shows its path, and
+that is what lets an owner see why they got a task without trusting anyone's
+judgment.

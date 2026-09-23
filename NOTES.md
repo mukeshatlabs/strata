@@ -670,3 +670,39 @@ work.
 Eval scores are unchanged, which is expected: the metrics measure extraction,
 verification, mapping and impacts, none of which this touches. v1 to v2 goes from 11
 tasks to 8.
+
+## Post-build: loading the next version too early
+
+**Reported from the running app**: clicking "Load next version" on a fresh `make run`
+returned a 500 with an ASGI traceback. Two defects behind it, one of them worse than the
+error page.
+
+**The cache miss is expected.** The recorded v3 mapping prompts list OBL-12, which only
+exists once an expert has resolved v2's new-obligation item, so loading v3 first builds
+a prompt that was never recorded. This was already in the README as a known limitation,
+but the product treated it as a crash rather than as a state the user can be told about.
+`load_version` now catches `CacheMiss`, re-renders the review page with 409 and an
+explanation naming the expert queue, and the review page carries a standing warning
+while a new-obligation item is open. A `CacheMiss` is the one model-layer failure a
+reviewer running from the committed cache is most likely to see; it deserved a screen,
+not a traceback.
+
+**The real defect: `run_version` was not atomic.** The failed attempt left 26 partial
+v2->v3 events in the log, 12 claims extracted and verified and 2 tasks created, for the
+changes processed before the miss. A retry after resolving the queue would have appended
+a second copy of all of them, and an append-only log has no way to take that back except
+a rollback event. `events.append` now takes `commit=False`, and `run_version` wraps the
+whole pass in one transaction: commit at the end, `conn.rollback()` on any exception.
+`test_a_failed_run_writes_nothing` fails the run part way through and asserts the log is
+empty; `test_a_failed_run_can_be_retried_after_resolving` does the whole user journey and
+asserts no duplicate claim IDs.
+
+This is the kind of bug the event log makes both easy to cause and easy to see: every
+stage writing its own event is exactly what leaves debris when a stage fails, and it was
+visible in one query.
+
+**Found while fixing it**: the v2 penalty paragraph produces two `created` claims, the
+penalty itself and the bar on recovering it from ratepayers, so there are two
+new-obligation items, not one. A test that resolved only the first left the warning
+standing and caught its own wrong assumption. Both are defensible readings of the
+paragraph and an expert decides whether they are one obligation or two.

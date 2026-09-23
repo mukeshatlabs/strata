@@ -20,6 +20,11 @@ DB_PATH = "strata.db"
 VERSIONS = ("v1", "v2", "v3")
 
 
+def _append(conn, event: Event) -> Event:
+    """Append without committing. run_version commits once, at the end."""
+    return events.append(conn, event, commit=False)
+
+
 def _event(type: str, subject_id: str, payload: dict, project_id: str) -> Event:
     return Event(
         seq=None,
@@ -93,6 +98,24 @@ def run_version(conn, project_id: str, version_id: str) -> dict:
     paragraphs = _paragraphs(conn)
 
     tasks = []
+    try:
+        tasks = _run_changes(conn, project_id, changes, paragraphs, state, company,
+                             obligations, summary)
+    except Exception:
+        # A version run is all or nothing. A failure part way through would
+        # otherwise leave claims for some changes and not others, and a retry
+        # would append a second copy of everything that did succeed.
+        conn.rollback()
+        raise
+    conn.commit()
+    summary["tasks"] = tasks
+    return summary
+
+
+def _run_changes(conn, project_id, changes, paragraphs, state, company, obligations,
+                 summary) -> list:
+    """Process every change of one version pair. Writes are not committed here."""
+    tasks = []
     for change in changes:
         # Tasks are collected for the whole change, then merged, because one
         # paragraph that alters two obligations produces one claim per
@@ -105,8 +128,7 @@ def run_version(conn, project_id: str, version_id: str) -> dict:
                            company, obligations)
             )
         tasks.extend(_emit(conn, project_id, routing.merge_tasks(for_change)))
-    summary["tasks"] = tasks
-    return summary
+    return tasks
 
 
 def _run_claim(conn, project_id, change, claim, paragraphs, state, company,
@@ -116,11 +138,11 @@ def _run_claim(conn, project_id, change, claim, paragraphs, state, company,
     Tasks are returned rather than written: run_version merges a change's tasks
     across its claims before any task_created event is appended.
     """
-    events.append(conn, _event("claim_extracted", claim.claim_id,
+    _append(conn, _event("claim_extracted", claim.claim_id,
                                claim.__dict__, project_id))
 
     verification = verify.verify_claim(claim, paragraphs, change)
-    events.append(conn, _event("claim_verified", claim.claim_id,
+    _append(conn, _event("claim_verified", claim.claim_id,
                                verification.__dict__, project_id))
 
     # A rejected quote on a real change is still a change someone must look at,
@@ -142,14 +164,14 @@ def _run_claim(conn, project_id, change, claim, paragraphs, state, company,
             for link in links
         ]
         for link in links:
-            events.append(conn, _event("link_proposed", claim.claim_id,
+            _append(conn, _event("link_proposed", claim.claim_id,
                                        link.__dict__, project_id))
 
     impacts = []
     for link in links:
         for impact in graph.propagate(company, link.obligation_id):
             impacts.append(impact)
-            events.append(conn, _event(
+            _append(conn, _event(
                 "impact_found", claim.claim_id,
                 {**impact.__dict__, "claim_id": claim.claim_id}, project_id))
 
@@ -159,7 +181,7 @@ def _run_claim(conn, project_id, change, claim, paragraphs, state, company,
 def _emit(conn, project_id: str, tasks: list) -> list:
     """Write a task_created event for each task and return them."""
     for task in tasks:
-        events.append(conn, _event("task_created", task.task_id,
+        _append(conn, _event("task_created", task.task_id,
                                    task.__dict__, project_id))
     return tasks
 

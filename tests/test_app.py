@@ -283,3 +283,72 @@ def test_prefilled_form_then_next_version_runs_without_a_key(client, monkeypatch
     conn.close()
 
     assert client.get(f"/projects/{PROJECT}/review").status_code == 200
+
+
+def test_loading_the_next_version_too_early_explains_instead_of_crashing(client, monkeypatch):
+    """Clicking Load next version before resolving the expert queue (bug report)."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    conn = db.connect(app_module.DB_PATH)
+    before = len(events.history(conn, PROJECT))
+    conn.close()
+
+    r = client.post(f"/projects/{PROJECT}/versions", data={"version_id": "v3"})
+    assert r.status_code == 409, "a cache miss is an expected outcome, not a 500"
+    assert "not in the recorded cache" in r.text
+    assert "expert queue" in r.text
+    assert "rolled back" in r.text
+
+    conn = db.connect(app_module.DB_PATH)
+    log = events.history(conn, PROJECT)
+    assert len(log) == before, "a failed run must leave no events behind"
+    assert not [e for e in log if "v2->v3" in (e.subject_id or "")]
+    conn.close()
+
+
+def test_review_warns_while_a_new_obligation_item_is_open(client):
+    body = client.get(f"/projects/{PROJECT}/review").text
+    assert "create a new obligation" in body
+    assert "Resolve them before loading v3" in body
+
+
+def _resolve_new_obligation_items(client) -> int:
+    """Resolve every new-obligation item. The penalty paragraph raises two."""
+    conn = db.connect(app_module.DB_PATH)
+    tasks = [t for t in events.replay(conn, PROJECT).open_tasks()
+             if t.get("reason") == "new_obligation"]
+    conn.close()
+    assert tasks, "expected at least one new-obligation item"
+    for task in tasks:
+        client.post(f"/tasks/{task['task_id']}/create-obligation", data={
+            "node_id": pipeline.OBL_12["id"], "name": pipeline.OBL_12["name"],
+            "text": pipeline.OBL_12["text"], "owner": pipeline.OBL_12["owner"],
+            "source_para": pipeline.OBL_12["source_para"],
+        })
+    return len(tasks)
+
+
+def test_the_warning_clears_once_every_item_is_resolved(client):
+    """The v2 penalty paragraph raises two created claims, so both must be resolved."""
+    assert _resolve_new_obligation_items(client) == 2
+    assert "Resolve them before loading" not in client.get(
+        f"/projects/{PROJECT}/review"
+    ).text
+
+
+def test_a_failed_run_can_be_retried_after_resolving(client, monkeypatch):
+    """The whole point of the rollback: the retry must not double up."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    assert client.post(f"/projects/{PROJECT}/versions",
+                       data={"version_id": "v3"}).status_code == 409
+
+    _resolve_new_obligation_items(client)
+    client.post(f"/projects/{PROJECT}/versions", data={"version_id": "v3"},
+                follow_redirects=False)
+
+    conn = db.connect(app_module.DB_PATH)
+    claims = [c for c in events.replay(conn, PROJECT).claims.values()
+              if c["change_id"].startswith("c:v2->v3")]
+    ids = [c["claim_id"] for c in claims]
+    assert len(ids) == len(set(ids)), "the failed attempt was appended twice"
+    conn.close()

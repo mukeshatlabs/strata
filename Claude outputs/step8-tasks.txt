@@ -1,0 +1,95 @@
+STEP 8: CREATE TASKS (strata/routing.py, functions create_tasks and merge_tasks, ACTIONS table)
+No model. Runs once per change, after all of that change's claims have been mapped and propagated.
+
+============================== THE ACTIONS TABLE ==============================
+
+Keyed on (obligation_change, node_type). Hand-written, small.
+
+  (modified, obligation)  Update the obligation to reflect the changed requirement.
+  (modified, project)     Review whether the project schedule or scope still holds
+                          under the changed requirement.
+  (modified, document)    Update the document to reflect the changed requirement.
+  (removed,  obligation)  Retire the obligation; confirm nothing else depends on it.
+  (removed,  project)     Review whether the project is still required.
+  (removed,  document)    Remove or revise the section that implements the retired
+                          requirement.
+
+(created, *) never reaches this table: created claims went to the expert queue in
+routing rule 2, and the expert creates the node.
+
+=========================== BUILDING THE TASK SET =============================
+
+For one claim in the owner queue, create_tasks produces:
+
+  1. One task for each linked obligation itself (the walk excluded its start node).
+     OBL-3 -> owner P-2, action (modified, obligation), path [[OBL-3]]
+  2. One task for each Impact returned by propagate.
+     PRJ-1 -> owner P-2, action (modified, project),  path [[OBL-3, PRJ-1]]
+     DOC-1 -> owner P-3, action (modified, document), path [[OBL-3, DOC-1]]
+     DOC-2 -> owner P-5, action (modified, document), path [[OBL-3, DOC-2]]
+     DOC-4 -> owner P-5, action (modified, document), path [[OBL-3, PRJ-1, DOC-4]]
+
+The assignee is always the owner field of the node reached. No one is asked; it is
+a lookup.
+
+For a claim in the expert queue, create_tasks produces exactly one task:
+  assignee P-8, queue expert, reason attached, no impacts, no owner tasks.
+  (A test pins that an escalated claim creates zero owner tasks even when impacts
+   exist: low-confidence work must not land in six people's queues.)
+
+============================ MERGING ACROSS CLAIMS ============================
+
+The deadline change has two claims, k1 (OBL-3) and k2 (OBL-4). Each produces its
+own task set. Before anything is written, merge_tasks combines them BY NODE:
+
+  before merge (k1)                         before merge (k2)
+    OBL-3   [[OBL-3]]                         OBL-4   [[OBL-4]]
+    PRJ-1   [[OBL-3, PRJ-1]]                  PRJ-1   [[OBL-4, PRJ-1]]
+    DOC-1   [[OBL-3, DOC-1]]                  DOC-1   [[OBL-4, DOC-1]]
+    DOC-2   [[OBL-3, DOC-2]]
+    DOC-4   [[OBL-3, PRJ-1, DOC-4]]           DOC-4   [[OBL-4, PRJ-1, DOC-4]]
+
+  after merge (one task per node for change c:v1->v2:p12)
+    task_id                 node   assignee  paths                                        obligations     claims
+    c:v1->v2:p12:OBL-3      OBL-3  P-2       [[OBL-3]]                                    [OBL-3]         [k1]
+    c:v1->v2:p12:OBL-4      OBL-4  P-2       [[OBL-4]]                                    [OBL-4]         [k2]
+    c:v1->v2:p12:PRJ-1      PRJ-1  P-2       [[OBL-3,PRJ-1],[OBL-4,PRJ-1]]                [OBL-3,OBL-4]   [k1,k2]
+    c:v1->v2:p12:DOC-1      DOC-1  P-3       [[OBL-3,DOC-1],[OBL-4,DOC-1]]                [OBL-3,OBL-4]   [k1,k2]
+    c:v1->v2:p12:DOC-2      DOC-2  P-5       [[OBL-3,DOC-2]]                              [OBL-3]         [k1]
+    c:v1->v2:p12:DOC-4      DOC-4  P-5       [[OBL-3,PRJ-1,DOC-4],[OBL-4,PRJ-1,DOC-4]]    [OBL-3,OBL-4]   [k1,k2]
+
+Six tasks for the deadline change. Luis (P-2) sees Riverside once, with both
+reasons it is affected. Expert tasks are never merged: two claims of one change can
+escalate for different reasons and both must be visible.
+
+Task IDs are <change_id>:<node_id>, so a merged task has no single owning claim;
+claim_ids records every claim behind it, and approving the task accepts all of them.
+
+============================== THE v1->v2 TOTAL ===============================
+
+  deadline change (c:v1->v2:p12)     6 owner tasks (above)
+  penalty change  (c:v1->v2:+p17)    1 expert task, reason new_obligation
+  12 non-material changes            0 tasks
+
+  Review page header: 14 changes · 6 owner tasks · 1 expert item  (after the merge fix)
+
+============================ THE BUG THIS STEP HAD ============================
+
+As first built, create_tasks ran per claim and merged within a claim only. Because
+k1 and k2 are separate claims, PRJ-1, DOC-1 and DOC-4 each got two tasks. The tests
+passed because both were written with a single claim carrying two links, a shape the
+extraction never produces. Found by checking WALKTHROUGH.md's claims against the
+running code; fixed by merging at the change level (commit 400e282). The lesson in
+NOTES.md: a test fixture that can express an impossible input proves nothing about
+the possible ones.
+
+============================ A ReviewTask RECORD ==============================
+
+ReviewTask(task_id="c:v1->v2:p12:PRJ-1", change_id="c:v1->v2:p12",
+           claim_ids=["c:v1->v2:p12:k1", "c:v1->v2:p12:k2"],
+           node_id="PRJ-1", node_type="project", assignee="P-2", queue="owner",
+           reason=None, obligation_ids=["OBL-3", "OBL-4"],
+           paths=[["OBL-3","PRJ-1"], ["OBL-4","PRJ-1"]],
+           recommended_action="Review whether the project schedule or scope still
+                               holds under the changed requirement.",
+           status="open")

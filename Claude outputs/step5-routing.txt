@@ -1,0 +1,80 @@
+STEP 5: ROUTE (strata/routing.py, function route; plus THRESHOLD and EXPERT constants)
+No model. Runs once per claim, in two places: once after verification (before mapping)
+and again after mapping (to apply the confidence and rationale rules).
+
+============================ THE RULES, IN ORDER ==============================
+
+THRESHOLD = 0.7          EXPERT = "P-8"   (regulatory counsel)
+
+  1. verification.status == "rejected"
+        -> expert queue, reason = the verifier's reason
+           (wrong_paragraph | quote_outside_changed_span | quote_not_found)
+
+  2. claim.obligation_change == "created"
+        -> expert queue, reason = new_obligation
+           (mapping is skipped: no existing obligation can be the right link
+            for a brand-new duty; a human creates the node)
+
+  3. any link.rationale_status == "rejected"
+        -> expert queue, reason = rationale_unverified
+           (the link may be right, but the model's justification quote was not
+            found in the obligation's text; a fabricated justification is a
+            citation failure)
+
+  4. any link.confidence < THRESHOLD
+        -> expert queue, reason = low_confidence
+
+  5. obligation_change in (modified, removed) and no link at or above THRESHOLD
+        -> expert queue, reason = no_confident_link
+
+  6. otherwise
+        -> owner queue
+
+  Non-material claims: recorded, no queue, no tasks. (Checked after rule 1, so a
+  non-material claim with a rejected quote still reaches an expert.)
+
+Rules 1 and 2 need nothing from mapping, so they run before the mapping call.
+Rules 3 to 5 need the links, so they run after it.
+
+======================== THE v1->v2 CLAIMS, ROUTED ============================
+
+claim                     material  change    verified  ->  outcome
+c:v1->v2:p1:k1            no        none      yes       ->  recorded, no tasks
+c:v1->v2:p3:k1            no        none      yes       ->  recorded
+c:v1->v2:p4:k1  footnote  no        none      yes       ->  recorded
+c:v1->v2:p5:k1            no        none      yes       ->  recorded
+c:v1->v2:p6:k1  summary   no        none      yes       ->  recorded  (prompt v2 fixed this)
+c:v1->v2:p10:k1 reworded  no        none      yes       ->  recorded
+c:v1->v2:p12:k1 deadline  yes       modified  yes       ->  continue to mapping
+c:v1->v2:p12:k2 delivery  yes       modified  yes       ->  continue to mapping
+c:v1->v2:+p17:k1 penalty  yes       created   yes       ->  EXPERT, new_obligation
+c:v1->v2:p21..p24, p26    no        none      yes       ->  recorded
+c:v1->v2:-p25   footnote  no        none      yes       ->  recorded
+
+After mapping (step 6), k1 and k2 come back with links at 0.98 and 0.96, rationale
+quotes verified  ->  rule 6, OWNER queue.
+
+======================== THE v2->v3 REJECTION, ROUTED =========================
+
+c:v2->v3:p7:k1   "The proposed rule applies" -> "The rule applies"
+  material: no   verification: rejected (quote_outside_changed_span)
+  Rule 1 fires before the materiality check  ->  EXPERT, reason quote_outside_changed_span
+  A non-material label is not trusted when the evidence behind it did not verify.
+
+=========================== WHY THIS ORDER ====================================
+
+Evidence failures first (rules 1, 3): if the citation is bad, nothing built on it
+is trusted, whatever the label or the confidence.
+Structural cases next (rule 2): a created duty has no right answer among existing
+nodes, so asking the model would only produce a wrong link with high confidence.
+Confidence last (rules 4, 5): it is the model's self-report, not a probability,
+and it is the weakest signal in the list.
+
+The threshold is one constant. The eval report shows how many items land in each
+queue at 0.5, 0.7, and 0.9 so the trade-off is visible rather than hidden.
+
+=============================== ASSIGNEES =====================================
+
+Owner queue: the task is assigned to the owner of the impacted node (step 8).
+Expert queue: assigned to P-8, regulatory counsel, who exists in the company graph
+for exactly this purpose and owns nothing else.

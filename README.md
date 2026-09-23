@@ -78,13 +78,15 @@ cache as they stood at that commit.
 - **The committed cache is tied to the exact prompts.** Changing a prompt, a response
   schema, or the model name changes the cache key, and the affected calls then need
   `make live` to re-record. The failure is loud: a `CacheMiss` naming the call.
-- **Creating the obligation with different wording leaves the cache.** The v3 mapping
-  prompt lists every obligation with its name and text, including the one an expert
-  creates during v2 review, so the recorded v3 responses assume the wording `make live`
-  used. The create-obligation form is prefilled with that wording for this reason. Edit
-  the fields and the next version needs an API key. In a real system the mapping
-  candidates would come from a retrieval step over a live obligation store rather than
-  from a frozen cache.
+- **The next version has to be loaded in order, and with the prefilled wording.** The v3
+  mapping prompt lists every obligation with its name and text, including the one an
+  expert creates during v2 review, so the recorded v3 responses assume both that the
+  obligation exists and that it is worded the way `make live` wrote it. Load v3 before
+  resolving the expert queue, or edit the prefilled fields, and v3 needs an API key. The
+  product handles this rather than failing: the run is rolled back so nothing partial is
+  written, and the review page says which queue to resolve first. In a real system the
+  mapping candidates would come from a retrieval step over a live obligation store
+  rather than from a frozen cache.
 - **Confidence values are model self-reports.** They are not calibrated probabilities
   and the escalation threshold of 0.7 has not been tuned against real reviewer
   behaviour. In the recorded run every link scores 0.93 or above, so the threshold does

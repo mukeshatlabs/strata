@@ -1,0 +1,131 @@
+STEP 9: WRITE EVENTS (strata/events.py)
+Functions: append, replay, rollback, signature, override_for
+The only write path for anything that changes project state. Called from pipeline.py
+after every stage, and from app.py on every human action.
+
+============================== THE EVENT ROW ==================================
+
+  seq         auto-incrementing integer; the order of the log
+  ts          timestamp
+  actor       "system" | "dana" | "expert"
+  type        one of the types below
+  subject_id  what this event is about (a claim id, task id, node id, ...)
+  payload     JSON with the details
+
+Event types written by the pipeline (actor system):
+  claim_extracted     payload: the Claim
+  claim_verified      payload: the Verification
+  link_proposed       payload: the Link(s)
+  impact_found        payload: the Impact + claim_id   <- the field the first
+                                                          version forgot
+  task_created        payload: the merged ReviewTask
+
+Event types written by people (actor dana or expert):
+  task_approved       payload: task_id
+  task_edited         payload: task_id, corrected obligation_id, change_signature,
+                               lineage_key
+  task_escalated      payload: task_id, note
+  node_created        payload: id, type, name, text, owner, source_para
+  edge_created        payload: from, to, type
+  rollback            payload: to_seq
+
+============================ WHAT THE LOG LOOKS LIKE ==========================
+
+After make run (v1->v2 processed, nothing reviewed yet), the log is roughly:
+
+  seq  actor   type              subject
+    1  system  claim_extracted   c:v1->v2:p1:k1
+    2  system  claim_verified    c:v1->v2:p1:k1
+    ...
+   13  system  claim_extracted   c:v1->v2:p12:k1
+   14  system  claim_extracted   c:v1->v2:p12:k2
+   15  system  claim_verified    c:v1->v2:p12:k1
+   16  system  claim_verified    c:v1->v2:p12:k2
+   17  system  link_proposed     c:v1->v2:p12:k1     (OBL-3, 0.98)
+   18  system  link_proposed     c:v1->v2:p12:k2     (OBL-4, 0.96)
+   19  system  impact_found      PRJ-1  from OBL-3
+   20  system  impact_found      DOC-1  from OBL-3
+   ...
+   26  system  task_created      c:v1->v2:p12:PRJ-1
+   ...
+   33  system  claim_extracted   c:v1->v2:+p17:k1
+   34  system  claim_verified    c:v1->v2:+p17:k1
+   35  system  task_created      expert task, new_obligation
+   ...
+
+There is no "tasks" table, no "claims" table. This list is the only record.
+
+================================ REPLAY =======================================
+
+replay(conn, project_id, upto=None) -> State
+
+  1. Read events in seq order (all, or up to seq N).
+  2. Resolve rollbacks: for each rollback event with to_seq=N, drop every earlier
+     event with seq > N from the effective list. The rollback event itself is kept
+     for the audit page but is not state.
+  3. Fold the effective list into a State object:
+       accepted_claims     filled ONLY by task_approved / task_edited
+       confirmed_impacts   same
+       tasks               task_created adds; approved/edited/escalated change status
+       overrides           task_edited adds, keyed by change_signature and lineage_key
+       created_nodes       node_created
+       created_edges       edge_created
+       rolled_back_to      the most recent rollback target, if any
+       last_seq
+
+Nothing the pipeline writes marks anything as accepted. Only a human event does.
+That is PRD R4.3 enforced by construction.
+
+Every page load calls replay. Approve one task -> one event appended -> next page
+load replays a log one event longer.
+
+=============================== ROLLBACK ======================================
+
+rollback(conn, project_id, to_seq) appends ONE event: type rollback, payload {to_seq}.
+Nothing is deleted. Events after to_seq are still in the table; replay ignores them.
+Events appended after the rollback apply normally.
+Nested rollbacks work without special casing (rollback to 30, then to 20).
+
+  audit page:   lists everything, including the rollback events, newest first
+  review page:  built from the effective list, so a rolled-back approval is gone
+  graph.load:   consumes the effective list, so a rolled-back node_created leaves
+                no node
+
+============================ CHANGE SIGNATURE =================================
+
+signature(change) = sha256(kind + normalized text_from + normalized text_to)[:16]
+
+Keyed on content, never on paragraph IDs or numbers, so the same edit has the same
+signature after renumbering. Different edit -> different signature.
+
+When Dana edits a task (corrects the linked obligation), the task_edited event
+stores two keys:
+  edit:<signature(change)>              exact same edit seen again (a re-run)
+  lineage:<sha256(normalized text_to)>  the paragraph text this correction was about
+
+On the next version, before mapping is called for a change, pipeline asks
+override_for(change): does the log hold an override under
+  edit:<signature(this change)>  or  lineage:<sha256(normalized text_from)> ?
+If so, the correction is applied and the model is not asked. That is how a v2
+correction carries into a v3 re-edit of the same paragraph (PRD R4.4). One
+generation only: the re-edit produces new text under a new key.
+
+The synthetic data has no re-edit of the same paragraph across versions, so this is
+proven by a constructed test (test_override_carries_into_a_later_edit_of_the_same_
+paragraph), which asserts both that the signatures differ and that the override is
+still found.
+
+============================== WHY THIS DESIGN ================================
+
+Considered: mutable state tables with a separate history table. Rejected because
+the two drift, rollback means reverse-applying history, and "what did the system
+know at the time" becomes a reconstruction. With one append-only log, current
+state, past state, and rollback are all the same operation: replay.
+
+Cost: reads compute state instead of selecting it. At this size, milliseconds. At
+millions of events, periodic snapshots and replay from the last one.
+
+The bug this step exposed: impact_found was first written as the Impact's fields,
+which have no claim_id; replay keyed impacts on claim_id and raised KeyError on
+every read after a run. Only a round trip through the log surfaces that a record
+and its event payload are different shapes. Found by the pipeline test in task 12.

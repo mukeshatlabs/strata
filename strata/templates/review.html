@@ -9,6 +9,24 @@
   {% if state.rolled_back_to is not none %}&middot; rolled back to {{ state.rolled_back_to }}{% endif %}
 </p>
 
+{% if error %}
+<p class="note"><strong>That version is not in the recorded cache.</strong>
+  The saved responses for the next version list the obligation an expert creates while
+  resolving this one's expert queue, so it has to be resolved first. Open the
+  <a href="/projects/{{ project_id }}/queue">expert queue</a>, create the obligation
+  with the prefilled form, then load the next version. Nothing was written: the run
+  was rolled back.
+  <br><br><span class="meta">{{ error }}</span></p>
+{% endif %}
+
+{% if blocking and next_version %}
+<p class="note">
+  {{ blocking|length }} item(s) in the
+  <a href="/projects/{{ project_id }}/queue">expert queue</a> create a new obligation.
+  Resolve them before loading {{ next_version }}, which maps against it.
+</p>
+{% endif %}
+
 {% if next_version %}
 <form method="post" action="/projects/{{ project_id }}/versions">
   <input type="hidden" name="version_id" value="{{ next_version }}">

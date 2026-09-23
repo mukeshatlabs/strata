@@ -11,7 +11,7 @@ from fastapi import FastAPI, Form, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from . import db, diff, events, graph, ingest, pipeline
+from . import db, diff, events, graph, ingest, llm, pipeline
 from .models import Event
 
 DB_PATH = "strata.db"
@@ -103,19 +103,30 @@ def home():
     return RedirectResponse(f"/projects/{PROJECT}/review", status_code=307)
 
 
-@app.get("/projects/{project_id}/review")
-def review(request: Request, project_id: str):
-    conn = connect()
+def _review_context(conn, project_id: str, error: str | None = None) -> dict:
     state = events.replay(conn, project_id)
-    changes = _changes(conn)
-    return templates.TemplateResponse(request, "review.html", {
+    blocking = [
+        t for t in state.tasks.values()
+        if t.get("reason") == "new_obligation" and t.get("status") == "open"
+    ]
+    return {
         "project_id": project_id,
         "state": state,
-        "items": review_items(conn, state, changes),
+        "items": review_items(conn, state, _changes(conn)),
         "next_version": _next_version(conn, state),
         "owner_count": len([t for t in state.tasks.values() if t.get("queue") == "owner"]),
         "expert_count": len([t for t in state.tasks.values() if t.get("queue") == "expert"]),
-    })
+        "blocking": blocking,
+        "error": error,
+    }
+
+
+@app.get("/projects/{project_id}/review")
+def review(request: Request, project_id: str):
+    conn = connect()
+    return templates.TemplateResponse(
+        request, "review.html", _review_context(conn, project_id)
+    )
 
 
 @app.get("/projects/{project_id}/queue")
@@ -164,9 +175,23 @@ def state_at(request: Request, project_id: str, upto: int | None = None):
 
 
 @app.post("/projects/{project_id}/versions")
-def load_version(project_id: str, version_id: str = Form(...)):
+def load_version(request: Request, project_id: str, version_id: str = Form(...)):
+    """Run the next version. A cache miss is an expected outcome, not a crash.
+
+    The recorded responses for v3 list the obligation an expert creates while
+    resolving v2's new-obligation item, so loading v3 first produces a prompt
+    that was never recorded. run_version rolls its own writes back, and the
+    review page says what to do.
+    """
     conn = connect()
-    pipeline.run_version(conn, project_id, version_id)
+    try:
+        pipeline.run_version(conn, project_id, version_id)
+    except llm.CacheMiss as miss:
+        return templates.TemplateResponse(
+            request, "review.html",
+            _review_context(conn, project_id, error=str(miss)),
+            status_code=409,
+        )
     return RedirectResponse(f"/projects/{project_id}/review", status_code=303)
 
 

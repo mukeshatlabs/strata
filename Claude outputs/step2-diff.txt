@@ -1,0 +1,40 @@
+v1 -> v2 paragraph alignment (difflib over paragraph texts, autojunk=False)
+
+modified  v1:p1  ->  v2:p1
+equal     v1:p2-p2  ->  v2:p2-p2   (no change records)
+modified  v1:p3  ->  v2:p3
+modified  v1:p4  ->  v2:p4
+modified  v1:p5  ->  v2:p5
+modified  v1:p6  ->  v2:p6
+equal     v1:p7-p9  ->  v2:p7-p9   (no change records)
+modified  v1:p10  ->  v2:p10
+equal     v1:p11-p11  ->  v2:p11-p11   (no change records)
+modified  v1:p12  ->  v2:p12
+equal     v1:p13-p16  ->  v2:p13-p16   (no change records)
+added     (none)  ->  v2:p17
+equal     v1:p17-p19  ->  v2:p18-p20   (no change records)
+modified  v1:p20  ->  v2:p21
+modified  v1:p21  ->  v2:p22
+modified  v1:p22  ->  v2:p23
+modified  v1:p23  ->  v2:p24
+equal     v1:p24-p24  ->  v2:p25-p25   (no change records)
+modified  v1:p25  ->  v2:p26
+modified  v1:p26  ->  v2:p-
+
+
+Word-level spans inside v1:p12 -> v2:p12:
+
+replace: v1 chars 117-133 'forty-five (45) '  ->  v2 chars 117-129 'thirty (30) '
+replace: v1 chars 264-273 'five (5) '  ->  v2 chars 260-270 'three (3) '
+
+
+v1:p12 text:
+Study completion. Each electric utility shall complete the interconnection study for a small storage resource within forty-five (45) business days of the date of the complete application. The utility shall deliver the written study results to the applicant within five (5) business days of completing the study.
+
+v2:p12 text:
+Study completion. Each electric utility shall complete the interconnection study for a small storage resource within thirty (30) business days of the date of the complete application. The utility shall deliver the written study results to the applicant within three (3) business days of completing the study.
+
+
+v1:p4 -> v2:p4 (footnote renumbering):
+38 business days for solar resources of comparable size.[^3]
+38 business days for solar resources of comparable size.[^2]

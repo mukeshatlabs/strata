@@ -68,15 +68,21 @@ def lineage_key(text: str) -> str:
     return "lineage:" + hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
 
 
-def append(conn, event: Event) -> Event:
-    """Write one event and return it with its assigned sequence number."""
+def append(conn, event: Event, commit: bool = True) -> Event:
+    """Write one event and return it with its assigned sequence number.
+
+    `commit=False` leaves the row in the open transaction, so a caller writing
+    several events for one unit of work can commit them together or discard them
+    all. `pipeline.run_version` uses it to make a version run atomic.
+    """
     cursor = conn.execute(
         "insert into events (company_id, project_id, ts, actor, type, subject_id,"
         " payload) values (?,?,?,?,?,?,?)",
         (event.company_id, event.project_id, event.ts or _now(), event.actor,
          event.type, event.subject_id, json.dumps(event.payload, ensure_ascii=False)),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return Event(
         seq=cursor.lastrowid, ts=event.ts, actor=event.actor, type=event.type,
         subject_id=event.subject_id, payload=event.payload,

@@ -14,6 +14,11 @@ The worked example is `make run`: processing **v2** against **v1**.
 **Returns** `{"from_version", "to_version", "changes", "claims", "tasks"}`, where
 `tasks` is a list of `ReviewTask`.
 
+The whole run is one transaction. Events are appended with `commit=False` and committed
+once at the end; any failure rolls them back. A version run is all or nothing, so a
+cache miss half way through cannot leave claims for some changes and not others, and a
+retry cannot append a second copy of what already succeeded.
+
 It is the only module that sequences stages and touches the database. Every other
 module is a pure function over records.
 
