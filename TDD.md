@@ -341,23 +341,33 @@ call per change keeps each prompt small and isolates each failure.
 `verify.verify_claim(claim, paragraphs, change) -> Verification` uses no model. The
 algorithm is:
 
-1. Normalize both the quote and the paragraph text by collapsing whitespace, unifying
-   curly and straight quotes, and unifying dashes. Record the mapping back to the
-   original offsets.
-2. Search for the normalized quote in the normalized paragraph named by
-   `quote_para_id`. An exact find is `verified` with `edit_distance=0`.
-3. If the quote is not found, slide a window the length of the quote across the
+1. Decide which paragraphs the claim is allowed to quote, from the kind of change. A
+   `modified` change may be quoted from either `para_id_to` or `para_id_from`: the
+   changed text of a pure deletion exists only in the from-version. An `added` change
+   has only a to-side, a `removed` change only a from-side. If `quote_para_id` is not
+   one of the allowed paragraphs, the status is `rejected` with reason
+   `wrong_paragraph`, and no search is run. Running this check first is what separates
+   a real quote lifted from a neighbouring paragraph from a quote that does not exist:
+   both would otherwise report `quote_not_found`.
+2. Normalize both the quote and the named paragraph's text: unify curly quotes, dashes
+   and non-breaking spaces one character for one, then collapse runs of whitespace to a
+   single space. Record a map from each normalized index back to the original, so every
+   offset the verifier reports is in the original paragraph's coordinates and is
+   directly comparable to `Change.spans_*`.
+3. Search for the normalized quote in the normalized paragraph. An exact find is
+   `verified` with `edit_distance=0`.
+4. If the quote is not found, slide a window the length of the quote across the
    paragraph and compute `rapidfuzz.distance.Levenshtein` at each offset. The best
    window with distance at or below `max(3, len(quote) // 25)` is `near`, with the
-   distance recorded. That threshold allows a dropped comma or one changed word in a
-   hundred-character quote and rejects a paraphrase.
-4. If `quote_para_id` is not the paragraph the change belongs to (`para_id_to`, or
-   `para_id_from` for removals), the status is `rejected` with reason
-   `wrong_paragraph`, even if the quote is found there. This check runs before the
-   search, so a real quote from a neighboring paragraph is caught.
-5. If the match, exact or near, does not overlap any span in `change.spans_to` (or
-   `spans_from` for removals), the status is `rejected` with reason
-   `quote_outside_changed_span` (PRD R2.4).
+   distance and the offset of the winning window recorded. That threshold allows a
+   dropped comma or one changed word in a hundred-character quote and rejects a
+   paraphrase. Recording which window won is what makes `match_start` meaningful on a
+   near match, and is what the overlap check in step 5 then uses.
+5. If the match, exact or near, does not overlap any changed span on the side the quote
+   was taken from, the status is `rejected` with reason `quote_outside_changed_span`
+   (PRD R2.4). A side with no changed spans, which happens when a modification is a pure
+   word deletion, can overlap nothing and therefore rejects; the quotable text of that
+   change is on the other side.
 6. Otherwise the status is `rejected` with reason `quote_not_found`.
 
 Every verification result is written as an event. A rejected claim is routed to the

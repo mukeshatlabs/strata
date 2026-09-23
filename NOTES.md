@@ -157,3 +157,43 @@ generator asserts each quote appears verbatim in `text_to` and contains no `<<`/
 before writing. The file carries a `note` field saying it is hand-written, and task 13
 replaces it. `test_cache_key_matches_the_committed_fixture` fails loudly with the new
 key if the prompt or the schema changes, which is the signal to regenerate.
+
+## Task 7: verify
+
+**Gold-set defect found, and the one permitted data edit.** VF-8 exists to prove that
+normalization works: its `tests` field reads "source uses curly quotes / non-breaking
+spaces; quote uses straight quotes / regular spaces; must still verify exactly after
+normalization". But its `source_text_override` was byte-identical to its `quote`, both
+plain ASCII, and the three version files contain no non-ASCII characters at all. The
+row passed without normalization existing, which made it a vacuous green on the one
+behaviour it was written to test. Fixed with approval by putting a real non-breaking
+space inside the quoted span, curly quotes and an em dash outside it, and a doubled
+space before it so offsets shift under collapse. `quote` is untouched, and
+`test_vf8_gold_row_actually_exercises_normalization` now asserts the row contains the
+characters its description claims and that the quote does *not* match before
+normalization, so the row cannot silently go vacuous again.
+
+**Offset map.** `normalize` returns the text plus a list with one entry per normalized
+character and a final entry holding `len(text)`, so a normalized span `[s, e)` maps to
+`[map[s], map[e])`. Character-for-character substitutions leave offsets alone; only
+whitespace collapse is many-to-one, and it emits its space at the index of the run's
+first character. Matching runs in normalized coordinates and every offset reported is
+mapped back, so `match_start` and `match_end` are comparable to `Change.spans_*` and
+can highlight the real source text. Tested three ways: a hand-written expected map for
+a string using every substitution, a round-trip over real paragraph text, and VF-8,
+where the matched original text is deliberately *not* equal to the quote and only
+becomes equal after normalization.
+
+**Order of checks.** The paragraph check is now step 1 in both code and TDD 3.4, which
+previously listed it fourth while its prose said it runs first. VF-3 and VF-4 carry the
+same quote and differ only in `quote_para_id`; if the search ran first, VF-4 would
+report `quote_not_found` and the distinction the gold set exists to test would be gone.
+The test asserts `match_start is None` on a `wrong_paragraph` rejection, which is the
+observable proof that no search happened.
+
+**Near matches record the winning window.** The sliding window tracks the best distance
+*and its offset*. Without the offset, `match_start` on a near match would be
+meaningless and the step 5 overlap check could not run on a near match at all. VF-2
+asserts `match_start > 0` and that the recovered window starts at the real sentence.
+
+TDD 3.4 rewritten in this commit for the either-side quote rule and the step order.

@@ -231,7 +231,7 @@
       "id": "VF-8",
       "quote": "shall complete the interconnection study for a small storage resource within thirty (30) business days",
       "quote_para_id": "v2:p12", "change": "CH-7",
-      "source_text_override": "shall complete the interconnection study for a small storage resource within thirty (30) business days",
+      "source_text_override": "Study completion.  Each electric utility shall complete the interconnection study for a small storage resource within thirty (30) business days of the date of the “complete application” — as that term is defined in Rule 3.2(a). The utility shall deliver the written study results to the applicant within three (3) business days of completing the study.",
       "expected_status": "verified",
       "tests": "normalization: source uses curly quotes / non-breaking spaces; quote uses straight quotes / regular spaces; must still verify exactly after normalization"
     }
