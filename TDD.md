@@ -1,6 +1,6 @@
 # Strata TDD: Technical Design
 
-Version 0.4, as built. Author: Mukesh Jain.
+Version 1.1, as built. Author: Mukesh Jain.
 
 This document specifies the technical design of the Strata prototype. For each
 component it states what is built, which alternatives were considered, and why they

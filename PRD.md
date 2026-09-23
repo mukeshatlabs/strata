@@ -1,6 +1,6 @@
 # Strata PRD: Regulatory Change-to-Action Workspace
 
-Version 0.3, as built. Author: Mukesh Jain.
+Version 1.1, as built. Author: Mukesh Jain.
 
 This document specifies the requirements for the Strata prototype. Each requirement in
 Section 5 has acceptance criteria. Each criterion is implemented as a test or as a row
