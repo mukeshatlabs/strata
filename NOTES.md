@@ -116,3 +116,44 @@ offline run never constructs a client.
 **Refusal and truncation raise rather than cache.** A `stop_reason` of `refusal` or
 `max_tokens` means there is no valid response to record; writing one would poison the
 committed cache with a failure that later runs would replay as though it were real.
+
+## Task 6: extract
+
+**Signatures differ from tasks.md.** `parse_response(raw, change)` takes the change
+because the model never sees or invents IDs; `claim_id` and `change_id` are minted
+here (`c:v1->v2:p12:k1`). `context_for(conn, change)` was added so the database read
+stays out of `build_prompt` and `parse_response`, which are pure and testable with no
+connection. `extract_claims(conn, change)` takes a connection for the same reason.
+
+**Two prompt lines earn their place.** The definition of material ("a change is
+material if it alters a duty, deadline, threshold, penalty, scope, or applicability;
+wording, numbering, status language, procedural dates, and background are not
+material") is what the gold traps turn on: CH-2 and CH-3 are footnote renumbering,
+CH-6 is a cosmetic rewording of the same 10-day duty, CH-5 mentions penalties in a
+summary paragraph while the duty itself lives in p17. And the `<<`/`>>` markers are
+declared not part of the document text and forbidden from the quote, or the model
+copies them in and the verifier rejects a quote that was otherwise correct.
+
+**Quotes overlap the span, not sit inside it.** Gold VF-1 verifies "shall complete the
+interconnection study for a small storage resource within thirty (30) business days",
+which is far longer than the marked span `<<thirty (30) >>`. TDD 3.4 step 5 requires
+the match to *overlap* a changed span, so the prompt says the quote must include text
+from inside a marked span and may extend past it in either direction. Saying
+"inside the span" would have produced two-word quotes that verify but read as nothing.
+
+**version_status is per response, not per claim.** The schema returns one
+`version_status` for the version and a list of claims; `parse_response` copies it onto
+every Claim per TDD 2.3. Asking for it per claim invites the same version to be called
+draft and final in one response.
+
+**Failure: prompt assertions were coupled to line wrapping.**
+`test_prompt_says_the_markers_are_not_part_of_the_text` failed because the sentence
+wraps across a newline in the source. Fixed in the test by collapsing whitespace before
+asserting, not by reflowing the prompt: the prompt's wording is hashed into the cache
+key, so tests must not push it around for cosmetic reasons.
+
+**The CH-7 fixture is hand-written and is held to the prompt's own rules.** The
+generator asserts each quote appears verbatim in `text_to` and contains no `<<`/`>>`
+before writing. The file carries a `note` field saying it is hand-written, and task 13
+replaces it. `test_cache_key_matches_the_committed_fixture` fails loudly with the new
+key if the prompt or the schema changes, which is the signal to regenerate.
