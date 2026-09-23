@@ -1,0 +1,239 @@
+{
+  "description": "Gold set for Docket 26-0412-RM versions v1, v2, v3 against the Meridian company graph. Each row has an id, the failure mode it tests, and the expected value. Paragraph IDs are version-local (v2:p12 is paragraph 12 of version 2).",
+
+  "version_status": [
+    {"id": "VS-1", "version": "v1", "expected": "draft", "tests": "baseline: proposed rule with comment period"},
+    {"id": "VS-2", "version": "v2", "expected": "draft", "tests": "revised draft is still draft even though it responds to comments"},
+    {"id": "VS-3", "version": "v3", "expected": "final", "tests": "finality signaled only by caption, ordering language ('are adopted'), and effective-date sentence in p20"}
+  ],
+
+  "changes": [
+    {
+      "id": "CH-1", "pair": "v1->v2", "from_para": "v1:p1", "to_para": "v2:p1",
+      "kind": "modified", "material": false, "obligation_change": "none",
+      "tests": "caption status wording changes; not an obligation change"
+    },
+    {
+      "id": "CH-2", "pair": "v1->v2", "from_para": "v1:p3", "to_para": "v2:p3",
+      "kind": "modified", "material": false, "obligation_change": "none",
+      "tests": "trap: footnote marker removed, text otherwise identical"
+    },
+    {
+      "id": "CH-3", "pair": "v1->v2", "from_para": "v1:p4", "to_para": "v2:p4",
+      "kind": "modified", "material": false, "obligation_change": "none",
+      "tests": "trap: footnote renumbered [^3] to [^2], text otherwise identical"
+    },
+    {
+      "id": "CH-4", "pair": "v1->v2", "from_para": "v1:p5", "to_para": "v2:p5",
+      "kind": "modified", "material": false, "obligation_change": "none",
+      "tests": "background paragraph replaced; describes comments, imposes nothing"
+    },
+    {
+      "id": "CH-5", "pair": "v1->v2", "from_para": "v1:p6", "to_para": "v2:p6",
+      "kind": "modified", "material": false, "obligation_change": "none",
+      "tests": "summary paragraph mentions penalties; the obligation itself is in p17, not here"
+    },
+    {
+      "id": "CH-6", "pair": "v1->v2", "from_para": "v1:p10", "to_para": "v2:p10",
+      "kind": "modified", "material": false, "obligation_change": "none",
+      "tests": "trap: cosmetic rewording of the deficiency notice paragraph, same 10 business days, same effect"
+    },
+    {
+      "id": "CH-7", "pair": "v1->v2", "from_para": "v1:p12", "to_para": "v2:p12",
+      "kind": "modified", "material": true, "obligation_change": "modified",
+      "expected_links": ["OBL-3", "OBL-4"],
+      "expected_quote_contains": ["thirty (30) business days", "three (3) business days"],
+      "tests": "trap: one paragraph change modifies two obligations (study deadline 45 to 30, delivery 5 to 3)"
+    },
+    {
+      "id": "CH-8", "pair": "v1->v2", "from_para": null, "to_para": "v2:p17",
+      "kind": "added", "material": true, "obligation_change": "created",
+      "expected_links": [],
+      "expected_queue": "expert", "expected_reason": "new_obligation",
+      "tests": "new penalty obligation with no existing node; must be escalated for a human to create the node and assign an owner, not silently linked to an existing obligation"
+    },
+    {
+      "id": "CH-9", "pair": "v1->v2", "from_para": "v1:p17", "to_para": "v2:p18",
+      "kind": "unchanged", "material": false,
+      "tests": "alignment: paragraph renumbered 17 to 18 after insertion, text identical, no change record should be emitted"
+    },
+    {
+      "id": "CH-10", "pair": "v1->v2", "from_para": "v1:p21", "to_para": "v2:p22",
+      "kind": "modified", "material": false, "obligation_change": "none",
+      "tests": "hearing date changed; procedural, not an obligation"
+    },
+    {
+      "id": "CH-11", "pair": "v1->v2", "from_para": "v1:p25", "to_para": null,
+      "kind": "removed", "material": false, "obligation_change": "none",
+      "tests": "trap: a footnote paragraph was removed; removal of a note is not removal of an obligation"
+    },
+
+    {
+      "id": "CH-12", "pair": "v2->v3", "from_para": "v2:p1", "to_para": "v3:p1",
+      "kind": "modified", "material": false, "obligation_change": "none",
+      "tests": "caption becomes FINAL ORDER; status signal, feeds version_status, not an obligation change"
+    },
+    {
+      "id": "CH-13", "pair": "v2->v3", "from_para": "v2:p8", "to_para": "v3:p8",
+      "kind": "modified", "material": false, "obligation_change": "none",
+      "tests": "'proposed for adoption' becomes 'adopted'; status signal"
+    },
+    {
+      "id": "CH-14", "pair": "v2->v3", "from_para": "v2:p12", "to_para": "v3:p12",
+      "kind": "unchanged", "material": false,
+      "tests": "study deadline paragraph identical between v2 and v3; no change record; the v2 decision carries forward"
+    },
+    {
+      "id": "CH-15", "pair": "v2->v3", "from_para": "v2:p14", "to_para": null,
+      "kind": "removed", "material": true, "obligation_change": "removed",
+      "expected_links": ["OBL-6"],
+      "expected_quote_contains": ["maintain on its public website a queue"],
+      "tests": "trap: public queue obligation removed entirely; quote must come from the from-version since the text no longer exists in v3"
+    },
+    {
+      "id": "CH-16", "pair": "v2->v3", "from_para": "v2:p15", "to_para": "v3:p14",
+      "kind": "modified", "material": true, "obligation_change": "modified",
+      "expected_links": ["OBL-7"],
+      "acceptable_extra_links": ["OBL-6"],
+      "expected_quote_contains": ["each June and December"],
+      "tests": "alignment: renumbered 15 to 14 after the queue paragraph was removed; quarterly report becomes semi-annual and absorbs queue data"
+    },
+    {
+      "id": "CH-17", "pair": "v2->v3", "from_para": "v2:p17", "to_para": "v3:p16",
+      "kind": "modified", "material": true, "obligation_change": "modified",
+      "expected_links": ["OBL-12"],
+      "expected_quote_contains": ["may, after written notice", "fifteen (15) business days"],
+      "tests": "penalty softened from mandatory $500/day to discretionary with cure period; links to OBL-12, the node created during v2 review; if OBL-12 does not exist the item goes to the expert queue"
+    },
+    {
+      "id": "CH-18", "pair": "v2->v3", "from_para": "v2:p18", "to_para": "v3:p17",
+      "kind": "unchanged", "material": false,
+      "tests": "alignment after removal; identical text"
+    },
+    {
+      "id": "CH-19", "pair": "v2->v3", "from_para": "v2:p21", "to_para": "v3:p20",
+      "kind": "modified", "material": false, "obligation_change": "none",
+      "tests": "comments paragraph replaced by effective-date paragraph; the effective date drives version_status, not an obligation"
+    }
+  ],
+
+  "impacts": [
+    {
+      "id": "IM-1", "change": "CH-7", "from_obligation": "OBL-3",
+      "expected": [
+        {"node": "PRJ-1", "path": ["OBL-3", "PRJ-1"], "hops": 1},
+        {"node": "DOC-1", "path": ["OBL-3", "DOC-1"], "hops": 1},
+        {"node": "DOC-2", "path": ["OBL-3", "DOC-2"], "hops": 1},
+        {"node": "DOC-4", "path": ["OBL-3", "PRJ-1", "DOC-4"], "hops": 2}
+      ],
+      "tests": "trap: DOC-4 (capital plan) reachable only two hops away via PRJ-1"
+    },
+    {
+      "id": "IM-2", "change": "CH-7", "from_obligation": "OBL-4",
+      "expected": [
+        {"node": "PRJ-1", "path": ["OBL-4", "PRJ-1"], "hops": 1},
+        {"node": "DOC-1", "path": ["OBL-4", "DOC-1"], "hops": 1},
+        {"node": "DOC-4", "path": ["OBL-4", "PRJ-1", "DOC-4"], "hops": 2}
+      ],
+      "tests": "second obligation from the same change; PRJ-1 and DOC-1 reached twice across IM-1 and IM-2 should produce one task each, not duplicates"
+    },
+    {
+      "id": "IM-3", "change": "CH-15", "from_obligation": "OBL-6",
+      "expected": [
+        {"node": "PRJ-2", "path": ["OBL-6", "PRJ-2"], "hops": 1},
+        {"node": "DOC-6", "path": ["OBL-6", "DOC-6"], "hops": 1},
+        {"node": "DOC-8", "path": ["OBL-6", "PRJ-2", "DOC-8"], "hops": 2}
+      ],
+      "tests": "removal propagates the same way as modification; the queue portal project and its spec are reached; recommended action for a project on a removed obligation is to review whether it is still required"
+    },
+    {
+      "id": "IM-4", "change": "CH-16", "from_obligation": "OBL-7",
+      "expected": [
+        {"node": "PRJ-3", "path": ["OBL-7", "PRJ-3"], "hops": 1},
+        {"node": "DOC-3", "path": ["OBL-7", "DOC-3"], "hops": 1}
+      ],
+      "tests": "one-hop impacts only"
+    },
+    {
+      "id": "IM-5", "change": "CH-17", "from_obligation": "OBL-12",
+      "expected": [],
+      "tests": "obligation created in v2 review has no edges yet; impacts empty; task goes to OBL-12's owner"
+    }
+  ],
+
+  "not_impacted": [
+    {"id": "NI-1", "change": "CH-7", "nodes": ["PRJ-4", "PRJ-5", "DOC-5", "DOC-7", "OBL-10", "OBL-11"], "tests": "unrelated nodes are not reached"},
+    {"id": "NI-2", "change": "CH-15", "nodes": ["PRJ-1", "DOC-1", "DOC-4"], "tests": "queue removal does not touch the study deadline cluster"}
+  ],
+
+  "routing": [
+    {"id": "RT-1", "change": "CH-7", "node": "PRJ-1", "expected_assignee": "P-2", "expected_action_key": ["modified", "project"]},
+    {"id": "RT-2", "change": "CH-7", "node": "DOC-1", "expected_assignee": "P-3", "expected_action_key": ["modified", "document"]},
+    {"id": "RT-3", "change": "CH-7", "node": "DOC-2", "expected_assignee": "P-5", "expected_action_key": ["modified", "document"]},
+    {"id": "RT-4", "change": "CH-7", "node": "DOC-4", "expected_assignee": "P-5", "expected_action_key": ["modified", "document"]},
+    {"id": "RT-5", "change": "CH-8", "expected_queue": "expert", "expected_reason": "new_obligation"},
+    {"id": "RT-6", "change": "CH-15", "node": "PRJ-2", "expected_assignee": "P-6", "expected_action_key": ["removed", "project"]},
+    {"id": "RT-7", "change": "CH-15", "node": "DOC-6", "expected_assignee": "P-7", "expected_action_key": ["removed", "document"]},
+    {"id": "RT-8", "change": "CH-16", "node": "DOC-3", "expected_assignee": "P-3", "expected_action_key": ["modified", "document"]}
+  ],
+
+  "verifier_cases": [
+    {
+      "id": "VF-1",
+      "quote": "shall complete the interconnection study for a small storage resource within thirty (30) business days",
+      "quote_para_id": "v2:p12", "change": "CH-7",
+      "expected_status": "verified", "expected_distance": 0,
+      "tests": "exact quote inside the changed span"
+    },
+    {
+      "id": "VF-2",
+      "quote": "shall complete the interconnection study for a small storage resource within thirty (30) business days.",
+      "quote_para_id": "v2:p12", "change": "CH-7",
+      "expected_status": "near", "expected_max_distance": 1,
+      "tests": "trailing period added; near-match with distance 1"
+    },
+    {
+      "id": "VF-3",
+      "quote": "shall have thirty (30) days from the date of the notice to cure",
+      "quote_para_id": "v2:p12", "change": "CH-7",
+      "expected_status": "rejected", "expected_reason": "quote_not_found",
+      "tests": "trap: distractor. This text is in p11 (cure period), not p12. Model tempted by 'thirty (30)' nearby"
+    },
+    {
+      "id": "VF-4",
+      "quote": "shall have thirty (30) days from the date of the notice to cure",
+      "quote_para_id": "v2:p11", "change": "CH-7",
+      "expected_status": "rejected", "expected_reason": "wrong_paragraph",
+      "tests": "trap: quote is real and in p11, but the change is in p12; a real quote from the wrong paragraph is rejected"
+    },
+    {
+      "id": "VF-5",
+      "quote": "Study completion. Each electric utility",
+      "quote_para_id": "v2:p12", "change": "CH-7",
+      "expected_status": "rejected", "expected_reason": "quote_outside_changed_span",
+      "tests": "quote is real and in the right paragraph but is from the unchanged opening, not the changed span"
+    },
+    {
+      "id": "VF-6",
+      "quote": "the study deadline is shortened to 30 business days",
+      "quote_para_id": "v2:p12", "change": "CH-7",
+      "expected_status": "rejected", "expected_reason": "quote_not_found",
+      "tests": "paraphrase, not a quote"
+    },
+    {
+      "id": "VF-7",
+      "quote": "maintain on its public website a queue of pending interconnection requests",
+      "quote_para_id": "v2:p14", "change": "CH-15",
+      "expected_status": "verified", "expected_distance": 0,
+      "tests": "removal: quote is from the from-version paragraph and must be verified there"
+    },
+    {
+      "id": "VF-8",
+      "quote": "shall complete the interconnection study for a small storage resource within thirty (30) business days",
+      "quote_para_id": "v2:p12", "change": "CH-7",
+      "source_text_override": "shall complete the interconnection study for a small storage resource within thirty (30) business days",
+      "expected_status": "verified",
+      "tests": "normalization: source uses curly quotes / non-breaking spaces; quote uses straight quotes / regular spaces; must still verify exactly after normalization"
+    }
+  ]
+}

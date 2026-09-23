@@ -1,0 +1,272 @@
+{
+  "company_id": "meridian",
+  "company_name": "Meridian Power & Light",
+  "description": "Investor-owned electric utility serving 1.1 million customers in the state. Regulated by the State Public Utility Commission. Graph represents the state of the company's obligations, projects, and documents as of the issuance of proposed rule v1 in Docket 26-0412-RM.",
+  "nodes": [
+    {
+      "id": "P-1",
+      "type": "person",
+      "name": "Dana Whitfield",
+      "text": "Regulatory affairs analyst. Owns the company's response to Docket 26-0412-RM."
+    },
+    {
+      "id": "P-2",
+      "type": "person",
+      "name": "Luis Ortega",
+      "text": "Interconnection manager. Runs the interconnection study group and the application intake desk."
+    },
+    {
+      "id": "P-3",
+      "type": "person",
+      "name": "Priya Raman",
+      "text": "Compliance lead. Owns compliance procedures, the compliance calendar, and Commission reporting."
+    },
+    {
+      "id": "P-4",
+      "type": "person",
+      "name": "Tom Becker",
+      "text": "Distribution planning engineer. Owns engineering standards and distribution system studies."
+    },
+    {
+      "id": "P-5",
+      "type": "person",
+      "name": "Karen Liu",
+      "text": "Rates and planning manager. Owns tariffs, the capital plan, and rate case preparation."
+    },
+    {
+      "id": "P-6",
+      "type": "person",
+      "name": "Sam Okafor",
+      "text": "IT project lead. Owns customer-facing web applications."
+    },
+    {
+      "id": "P-7",
+      "type": "person",
+      "name": "Elena Marsh",
+      "text": "Customer communications manager. Owns customer-facing guidance and FAQs."
+    },
+
+    {
+      "id": "OBL-1",
+      "type": "obligation",
+      "name": "Deficiency notice within 10 business days",
+      "text": "Notify the applicant in writing of any deficiencies in an interconnection request for a small storage resource within ten (10) business days of receipt. A request with no deficiency notice in that period is deemed complete as of receipt.",
+      "owner": "P-2",
+      "source_para": "v1:p10",
+      "docket": "26-0412-RM"
+    },
+    {
+      "id": "OBL-2",
+      "type": "obligation",
+      "name": "Cure period handling",
+      "text": "Allow an applicant thirty (30) days from a deficiency notice to cure deficiencies. Withdraw uncured requests from the queue without prejudice to refiling.",
+      "owner": "P-2",
+      "source_para": "v1:p11",
+      "docket": "26-0412-RM"
+    },
+    {
+      "id": "OBL-3",
+      "type": "obligation",
+      "name": "Study completion within 45 business days",
+      "text": "Complete the interconnection study for a small storage resource within forty-five (45) business days of the date of the complete application.",
+      "owner": "P-2",
+      "source_para": "v1:p12",
+      "docket": "26-0412-RM"
+    },
+    {
+      "id": "OBL-4",
+      "type": "obligation",
+      "name": "Deliver study results within 5 business days",
+      "text": "Deliver the written study results to the applicant within five (5) business days of completing the interconnection study.",
+      "owner": "P-2",
+      "source_para": "v1:p12",
+      "docket": "26-0412-RM"
+    },
+    {
+      "id": "OBL-5",
+      "type": "obligation",
+      "name": "Study scope for storage resources",
+      "text": "Evaluate the effect of a proposed storage resource on the distribution system under both charging and discharging conditions, and identify required system upgrades and the applicant's cost responsibility.",
+      "owner": "P-4",
+      "source_para": "v1:p13",
+      "docket": "26-0412-RM"
+    },
+    {
+      "id": "OBL-6",
+      "type": "obligation",
+      "name": "Public interconnection queue",
+      "text": "Maintain on the public website a queue of pending interconnection requests for small storage resources showing date of receipt, county, nameplate capacity, and status. Update the queue no less than monthly.",
+      "owner": "P-3",
+      "source_para": "v1:p14",
+      "docket": "26-0412-RM"
+    },
+    {
+      "id": "OBL-7",
+      "type": "obligation",
+      "name": "Quarterly interconnection report",
+      "text": "File with the Commission, within thirty (30) days after the end of each calendar quarter, a report of requests received, studies completed, median and maximum study completion time, and requests withdrawn.",
+      "owner": "P-3",
+      "source_para": "v1:p15",
+      "docket": "26-0412-RM"
+    },
+    {
+      "id": "OBL-8",
+      "type": "obligation",
+      "name": "Extension request procedure",
+      "text": "Where a study cannot be completed in the required period, request an extension from the Director of Utility Engineering stating the reason and expected completion date. Extensions may not exceed twenty (20) business days.",
+      "owner": "P-2",
+      "source_para": "v1:p16",
+      "docket": "26-0412-RM"
+    },
+    {
+      "id": "OBL-9",
+      "type": "obligation",
+      "name": "Compliance plan within 60 days of effective date",
+      "text": "File a compliance plan with the Commission within sixty (60) days after the effective date of the final rule describing changes to procedures, staffing, and systems.",
+      "owner": "P-1",
+      "source_para": "v1:p18",
+      "docket": "26-0412-RM"
+    },
+    {
+      "id": "OBL-10",
+      "type": "obligation",
+      "name": "Annual vegetation management plan",
+      "text": "File an annual vegetation management plan with the Commission by March 31 covering transmission and distribution rights of way.",
+      "owner": "P-4",
+      "source_para": null,
+      "docket": "19-0342-RM"
+    },
+    {
+      "id": "OBL-11",
+      "type": "obligation",
+      "name": "Rate case filing schedule",
+      "text": "File a general rate case no later than 36 months after the effective date of the last rate order, with a test year ending no more than 12 months before filing.",
+      "owner": "P-5",
+      "source_para": null,
+      "docket": "24-0088-RC"
+    },
+
+    {
+      "id": "PRJ-1",
+      "type": "project",
+      "name": "Riverside solar plus storage interconnection",
+      "text": "4.8 MW solar plus 3.2 MW / 12.8 MWh battery project in Hale County. Interconnection study in progress; complete application received 12 business days ago; study scheduled on the 45-business-day timeline. Developer targets energization in Q2 2027.",
+      "owner": "P-2",
+      "status": "active"
+    },
+    {
+      "id": "PRJ-2",
+      "type": "project",
+      "name": "Public interconnection queue portal",
+      "text": "IT build of a public web page listing pending small storage interconnection requests with monthly refresh from the interconnection tracking system. Budget $340,000. Scheduled launch November 2026.",
+      "owner": "P-6",
+      "status": "active"
+    },
+    {
+      "id": "PRJ-3",
+      "type": "project",
+      "name": "Interconnection reporting automation",
+      "text": "Scripts and a dashboard to generate the quarterly interconnection report to the Commission from the tracking system. Scoped for quarterly output with a 30-day filing window.",
+      "owner": "P-3",
+      "status": "active"
+    },
+    {
+      "id": "PRJ-4",
+      "type": "project",
+      "name": "Northgate substation transformer replacement",
+      "text": "Replacement of two 138/12 kV transformers at Northgate substation. Capital project, in construction, completion March 2027.",
+      "owner": "P-4",
+      "status": "active"
+    },
+    {
+      "id": "PRJ-5",
+      "type": "project",
+      "name": "2027 general rate case preparation",
+      "text": "Preparation of testimony, revenue requirement, and cost of service study for the general rate case due to be filed in 2027.",
+      "owner": "P-5",
+      "status": "active"
+    },
+
+    {
+      "id": "DOC-1",
+      "type": "document",
+      "name": "Interconnection procedures manual",
+      "text": "Internal manual for the interconnection group. Section 3.1 sets the 10-business-day deficiency review. Section 3.4 sets the 30-day cure period. Section 4.2 states that studies for storage resources under 5 MW are completed within 45 business days of a complete application. Section 4.5 states that written results are sent within 5 business days of study completion. Section 5 describes extension requests.",
+      "owner": "P-3"
+    },
+    {
+      "id": "DOC-2",
+      "type": "document",
+      "name": "Rider SSI: small storage interconnection tariff sheet",
+      "text": "Commission-filed tariff sheet stating the terms offered to small storage applicants, including the 10-business-day deficiency review and the 45-business-day study completion period.",
+      "owner": "P-5"
+    },
+    {
+      "id": "DOC-3",
+      "type": "document",
+      "name": "Regulatory compliance calendar",
+      "text": "Master calendar of recurring filings. Lists the quarterly interconnection report as due 30 days after each quarter end, and the Docket 26-0412-RM compliance plan as due 60 days after the final rule's effective date.",
+      "owner": "P-3"
+    },
+    {
+      "id": "DOC-4",
+      "type": "document",
+      "name": "2026 capital plan",
+      "text": "Board-approved capital plan. Includes the Riverside solar plus storage interconnection with an energization date that assumes the study is completed on the 45-business-day schedule, and the Northgate substation transformer replacement.",
+      "owner": "P-5"
+    },
+    {
+      "id": "DOC-5",
+      "type": "document",
+      "name": "Distribution study standards",
+      "text": "Engineering standard for interconnection studies. Specifies that storage resources are modeled under charging and discharging conditions and that upgrade cost responsibility is assigned per Commission rules.",
+      "owner": "P-4"
+    },
+    {
+      "id": "DOC-6",
+      "type": "document",
+      "name": "Customer interconnection FAQ",
+      "text": "Public web page for applicants. States that deficiency notices are issued within 10 business days and that applicants can check the status of pending requests on the public queue page.",
+      "owner": "P-7"
+    },
+    {
+      "id": "DOC-7",
+      "type": "document",
+      "name": "Vegetation management plan 2026",
+      "text": "Annual vegetation management plan filed under Docket 19-0342-RM.",
+      "owner": "P-4"
+    },
+    {
+      "id": "DOC-8",
+      "type": "document",
+      "name": "Queue portal requirements specification",
+      "text": "Functional requirements for the public interconnection queue portal: fields displayed, monthly refresh, data source, and accessibility requirements.",
+      "owner": "P-6"
+    }
+  ],
+  "edges": [
+    {"from": "PRJ-1", "to": "OBL-3", "type": "depends_on"},
+    {"from": "PRJ-1", "to": "OBL-4", "type": "depends_on"},
+    {"from": "PRJ-2", "to": "OBL-6", "type": "depends_on"},
+    {"from": "PRJ-3", "to": "OBL-7", "type": "depends_on"},
+    {"from": "PRJ-5", "to": "OBL-11", "type": "depends_on"},
+
+    {"from": "DOC-1", "to": "OBL-1", "type": "implements"},
+    {"from": "DOC-1", "to": "OBL-2", "type": "implements"},
+    {"from": "DOC-1", "to": "OBL-3", "type": "implements"},
+    {"from": "DOC-1", "to": "OBL-4", "type": "implements"},
+    {"from": "DOC-1", "to": "OBL-8", "type": "implements"},
+    {"from": "DOC-2", "to": "OBL-1", "type": "implements"},
+    {"from": "DOC-2", "to": "OBL-3", "type": "implements"},
+    {"from": "DOC-3", "to": "OBL-7", "type": "implements"},
+    {"from": "DOC-3", "to": "OBL-9", "type": "implements"},
+    {"from": "DOC-5", "to": "OBL-5", "type": "implements"},
+    {"from": "DOC-6", "to": "OBL-1", "type": "implements"},
+    {"from": "DOC-6", "to": "OBL-6", "type": "implements"},
+    {"from": "DOC-7", "to": "OBL-10", "type": "implements"},
+
+    {"from": "DOC-4", "to": "PRJ-1", "type": "references"},
+    {"from": "DOC-4", "to": "PRJ-4", "type": "references"},
+    {"from": "DOC-8", "to": "PRJ-2", "type": "references"}
+  ]
+}
