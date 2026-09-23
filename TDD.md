@@ -290,6 +290,25 @@ Event(seq=41, ts=..., actor="system"|"dana"|"expert",
       subject_id="c:v1->v2:p3:k1", payload={...})
 ```
 
+Two event types grow the company graph, and their payloads are the graph's write
+format. `graph.load` reads exactly these fields and `events.append` writes them, so the
+shape is fixed here once rather than in each module:
+
+```
+node_created  payload={"id": "OBL-12", "type": "obligation",
+                       "name": "Penalty for missed study deadline",
+                       "text": "Pay $500 per business day ...",
+                       "owner": "P-3", "source_para": "v2:p17"}
+
+edge_created  payload={"from": "DOC-1", "to": "OBL-12", "type": "implements"}
+```
+
+`type` is one of obligation, project, document, person; `owner` is a person node ID;
+`source_para` is the paragraph the obligation came from, or null for a node with no
+source. An `edge_created` whose `from` or `to` is not a known node is ignored rather
+than raising, because the log is append-only and a replay must not fail on an event
+that a later rollback makes irrelevant.
+
 Project state, meaning which claims are accepted, which impacts are confirmed, and
 which tasks are open, is never stored directly. It is computed by
 `events.replay(project_id, upto=None)`.
@@ -428,8 +447,11 @@ override rate defined in the PRD is the signal that would tune the threshold in 
 
 ### 3.7 Graph propagation
 
-`graph.propagate(obligation_id, graph) -> list[Impact]` is a breadth-first walk over
-incoming edges. It finds projects that `depends_on` the obligation and documents that
+`graph.propagate(graph, obligation_id, max_depth=3) -> list[Impact]` is a
+breadth-first walk over incoming edges. Every edge in the company graph points toward
+an obligation or a project, so the walk runs in reverse: from the changed obligation
+outward to whatever points at it. A forward walk from an obligation reaches nothing,
+and `test_propagate_walks_incoming_edges` asserts that premise rather than assuming it. It finds projects that `depends_on` the obligation and documents that
 `implements` it, then documents that `references` those projects, and continues to a
 depth of 3. Each impact records its path and the owner of the reached node. A visited
 set guards against cycles. The function is about ten lines of Python over a dictionary

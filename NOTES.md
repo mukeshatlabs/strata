@@ -197,3 +197,44 @@ meaningless and the step 5 overlap check could not run on a near match at all. V
 asserts `match_start > 0` and that the recovered window starts at the real sentence.
 
 TDD 3.4 rewritten in this commit for the either-side quote rule and the step order.
+
+## Task 8: graph
+
+**Propagation is a reverse walk, and the data forces it.** Every edge in
+meridian.json points toward an obligation or a project: `project -depends_on->
+obligation` (5), `document -implements-> obligation` (13), `document -references->
+project` (3). No edge originates from an obligation. So `propagate` walks *incoming*
+edges, from the changed obligation outward to whatever points at it; a forward walk
+from OBL-3 would return an empty list and every gold impact row would fail.
+`test_every_edge_points_toward_an_obligation_or_project` asserts the premise rather
+than leaving it as a comment, so a later edge type pointing the other way fails here
+instead of silently halving the impact set.
+
+**Event payload shapes are fixed in TDD 2.5, not in each module.** `node_created`
+carries `id`, `type`, `name`, `text`, `owner`, `source_para`; `edge_created` carries
+`from`, `to`, `type`. `graph.load` reads exactly those keys and task 11's
+`events.append` writes them. The test builds the payload dicts literally rather than
+calling a helper, so the shape is asserted from the outside and the two modules cannot
+drift apart through a shared constructor.
+
+**An edge_created to an unknown node is ignored, not an error.** The log is
+append-only and replay must not fail on an event that a later rollback makes
+irrelevant (TDD 3.9). Raising here would make the audit page unopenable after a
+rollback, which is the opposite of what the event log is for.
+
+**BFS gives shortest paths, which is what the gold expects.** DOC-4 reaches OBL-3 only
+through PRJ-1 and is recorded at two hops with path `["OBL-3", "PRJ-1", "DOC-4"]`
+(IM-1's trap). `test_shortest_path_wins_when_a_node_is_reachable_twice` adds a direct
+DOC-4 -> OBL-3 edge by event and asserts the one-hop route wins, so a change to
+depth-first order would be caught.
+
+**The created node is not written to the nodes table.** `graph.load` builds it in
+memory from the log every time, and a test asserts the table still has no OBL-12 row.
+The JSON file is unchanged too, asserted by reading it before and after. The node
+exists because the log says it does, which is the property TDD 3.9 is claiming.
+
+**IM-2 leaves a task 10 problem.** PRJ-1 and DOC-1 are each reached from both OBL-3
+and OBL-4 for the same change CH-7, so propagation returns them twice with different
+paths. That is correct here: each Impact records the obligation it came from. Task 10
+must create one task per reached node, not one per impact, or CH-7 produces duplicate
+work for the same owner.
