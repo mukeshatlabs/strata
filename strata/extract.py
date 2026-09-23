@@ -13,7 +13,7 @@ import json
 from . import llm
 from .models import Claim
 
-PROMPT_VERSION = "extract/v1"
+PROMPT_VERSION = "extract/v2"
 
 OBLIGATION_CHANGES = ("created", "modified", "removed", "none")
 VERSION_STATUSES = ("draft", "final")
@@ -70,6 +70,11 @@ Rules for quotes:
   document text and must not appear anywhere in your quote.
 - Set quote_para_id to the paragraph the quote was copied from, exactly as
   labelled below.
+- Quote from the new version by default. Where the change only removed text, so
+  that the words you are describing appear in the previous version and not in
+  the new one, quote the previous version and name that paragraph. A quote must
+  come from a paragraph that contains marked text; a paragraph with no marked
+  span has nothing quotable in it.
 - A verifier will search the source text for your quote without using a model.
   A quote it cannot find, or one taken from a paragraph other than the one you
   name, is rejected and the claim is sent to a human queue.
