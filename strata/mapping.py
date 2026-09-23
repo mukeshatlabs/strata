@@ -29,7 +29,7 @@ SCHEMA = {
                 "type": "object",
                 "properties": {
                     "obligation_id": {"type": "string"},
-                    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                    "confidence": {"type": "number"},  # range enforced in parse_response
                     "rationale": {"type": "string"},
                     "rationale_quote": {"type": "string"},
                 },

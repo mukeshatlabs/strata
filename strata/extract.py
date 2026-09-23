@@ -35,7 +35,7 @@ SCHEMA = {
                     "summary": {"type": "string"},
                     "quote": {"type": "string"},
                     "quote_para_id": {"type": "string"},
-                    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                    "confidence": {"type": "number"},  # range enforced in parse_response
                 },
                 "required": [
                     "material",

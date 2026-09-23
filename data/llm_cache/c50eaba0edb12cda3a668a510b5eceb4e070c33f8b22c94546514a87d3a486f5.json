@@ -45,9 +45,7 @@
               "type": "string"
             },
             "confidence": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1
+              "type": "number"
             }
           },
           "required": [
@@ -74,22 +72,24 @@
       {
         "material": true,
         "obligation_change": "modified",
-        "summary": "The interconnection study deadline for a small storage resource is shortened from forty-five (45) to thirty (30) business days.",
-        "quote": "shall complete the interconnection study for a small storage resource within thirty (30) business days",
+        "summary": "Deadline for the utility to complete the interconnection study for a small storage resource is shortened from forty-five (45) to thirty (30) business days after a complete application.",
+        "quote": "Each electric utility shall complete the interconnection study for a small storage resource within thirty (30) business days of the date of the complete application.",
         "quote_para_id": "v2:p12",
-        "confidence": 0.94
+        "confidence": 0.95
       },
       {
         "material": true,
         "obligation_change": "modified",
-        "summary": "The deadline to deliver written study results to the applicant is shortened from five (5) to three (3) business days.",
-        "quote": "shall deliver the written study results to the applicant within three (3) business days",
+        "summary": "Deadline for delivering written study results to the applicant is shortened from five (5) to three (3) business days after study completion.",
+        "quote": "The utility shall deliver the written study results to the applicant within three (3) business days of completing the study.",
         "quote_para_id": "v2:p12",
-        "confidence": 0.91
+        "confidence": 0.95
       }
     ]
   },
-  "usage": null,
-  "ts": "2026-09-23T04:28:25.524045+00:00",
-  "note": "HAND-WRITTEN fixture for task 6. Replaced by a real response in task 13."
+  "usage": {
+    "input_tokens": 2107,
+    "output_tokens": 275
+  },
+  "ts": "2026-09-23T05:22:26.688769+00:00"
 }

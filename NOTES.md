@@ -403,3 +403,58 @@ yet recorded. Task 13 populates the cache and the test starts running on its own
 **CLI added.** `python -m strata.pipeline ingest|run|live`, which the Makefile has
 referenced since task 1. `make reset` now works: 3 versions, 77 paragraphs, 32 nodes,
 21 edges.
+
+## Task 13: live run and cache
+
+**API constraint found on the first call: `minimum` and `maximum` are not supported on
+a `number` in a structured-output schema.** The first `make live` died with
+`400 invalid_request_error: output_config.format.schema: For 'number' type, properties
+maximum, minimum are not supported`. Both schemas declared `confidence` as
+`{"type": "number", "minimum": 0, "maximum": 1}`. Removed from the schema; the 0 to 1
+range was already enforced in `parse_response` in both modules, so nothing is
+unchecked, and the parser is the better place for it anyway because a violation then
+names the claim. This changed both schemas, and the schema is in the cache key, so the
+three hand-written fixtures were orphaned by it before being deleted.
+
+**The run.** 36 calls: 27 extractions, one per change, and 9 mapping calls, one per
+material claim that was not a `created` duty. 66,761 input tokens and 8,000 output
+tokens, about $0.53. v1 to v2 produced 16 claims and 12 tasks; v2 to v3 produced 19
+claims and 24 tasks.
+
+**Citation fidelity: 34 verified, 0 near, 1 rejected.** The single rejection is
+`c:v2->v3:p7` with reason `quote_outside_changed_span`, which is exactly the case
+predicted in task 4's notes and settled by the quote-side rule before task 7. That
+change is a pure word deletion, "The proposed rule applies" becoming "The rule
+applies", so `spans_to` is empty and a quote naming `v3:p7` can overlap nothing. The
+model quoted the to-side. The verifier rejected it and routed it to the expert queue,
+which is the designed behaviour, but it is also the clearest candidate for a prompt fix
+in task 14: the prompt should say that when the changed text exists only in the
+previous version, quote from there.
+
+**Materiality: 15 of 16 gold changes correct.** The miss is CH-5, the trap gold
+describes as "summary paragraph mentions penalties; the obligation itself is in p17,
+not here". The model returned material with `obligation_change: created` and confidence
+0.92, summarising that the revised rule "adds penalties for missed study deadlines".
+The materiality line in the prompt covers what counts as material but says nothing
+about a paragraph that *describes* a duty imposed elsewhere. That is the task 14 prompt
+iteration.
+
+CH-16 and CH-17 each produced an extra `created` claim alongside the expected
+`modified` one. Gold CH-16 already allows an extra link to OBL-6; the extra `created`
+claims are a precision cost, not a miss, and each one lands in the expert queue rather
+than reaching an owner.
+
+**Draft/final: v1 to v2 unanimous draft, correct. v2 to v3 split 17 final to 2 draft,
+majority correct.** Because `version_status` is asked per change, a version gets one
+vote per change and they can disagree. The eval in task 14 has to define how a version
+status is decided from the votes; a majority is the obvious rule and the split is worth
+reporting rather than hiding.
+
+**OBL-12 was created between the runs the way the review center will.** The live flow
+approves the escalated `new_obligation` tasks, appends `node_created` for OBL-12 with
+owner P-2 and `source_para` v2:p17, and appends `edge_created` for DOC-1 implements
+OBL-12. This conflicts with gold IM-5, which states OBL-12 "has no edges yet; impacts
+empty". The edge was added on instruction so CH-17 has something to propagate through.
+Edges never enter a prompt, so this affects no cached response and can be reverted
+without a live run; it will show as an IM-5 failure in the task 14 evals unless the
+edge is dropped or the gold row is revisited.

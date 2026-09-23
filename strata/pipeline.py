@@ -7,8 +7,10 @@ a rejected citation skips mapping, a non-material change stops after
 verification, and a newly created duty skips the mapping call entirely.
 """
 
+import os
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 from . import db, diff, events, extract, graph, ingest, mapping, routing, verify
 from .models import Event
@@ -155,6 +157,58 @@ def _emit(conn, project_id: str, tasks: list) -> list:
     return tasks
 
 
+def _load_env(path: str = ".env") -> None:
+    """Read KEY=value lines into the environment. Only `make live` needs this."""
+    env = Path(path)
+    if not env.exists():
+        return
+    for line in env.read_text(encoding="utf-8").splitlines():
+        if not line.strip() or line.lstrip().startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+
+
+OBL_12 = {
+    "id": "OBL-12",
+    "type": "obligation",
+    "name": "Penalty for a missed study deadline",
+    "text": "Pay a penalty of $500 per business day for each business day a completed"
+            " interconnection study is delivered after the required deadline.",
+    "owner": "P-2",
+    "source_para": "v2:p17",
+}
+OBL_12_EDGE = {"from": "DOC-1", "to": "OBL-12", "type": "implements"}
+
+
+def create_obl_12(conn, project_id: str, tasks: list) -> None:
+    """Resolve the CH-8 expert item the way the review center would (TDD 3.9).
+
+    The new penalty duty in v2 has no existing node, so it is escalated. An
+    expert approves that task and creates the obligation, which makes it a
+    mapping candidate for v3, where CH-17 softens the same penalty.
+    """
+    escalated = [t for t in tasks if t.reason == "new_obligation"]
+    for task in escalated:
+        events.append(conn, Event(
+            seq=None, ts=datetime.now(timezone.utc).isoformat(), actor="expert",
+            type="task_approved", subject_id=task.task_id,
+            payload={"task_id": task.task_id, "claim_id": task.claim_id},
+            project_id=project_id,
+        ))
+    events.append(conn, Event(
+        seq=None, ts=datetime.now(timezone.utc).isoformat(), actor="expert",
+        type="node_created", subject_id="OBL-12", payload=OBL_12,
+        project_id=project_id,
+    ))
+    events.append(conn, Event(
+        seq=None, ts=datetime.now(timezone.utc).isoformat(), actor="expert",
+        type="edge_created", subject_id="DOC-1->OBL-12", payload=OBL_12_EDGE,
+        project_id=project_id,
+    ))
+    print(f"  resolved {len(escalated)} expert item(s); created OBL-12 and one edge")
+
+
 def _ingest_all(conn) -> None:
     ingest.ingest_company(conn, "data/company/meridian.json")
     for version in VERSIONS:
@@ -173,6 +227,11 @@ def main(argv: list[str]) -> int:
         return 0
 
     if command in ("run", "live"):
+        if command == "live":
+            _load_env()
+            if not os.environ.get("ANTHROPIC_API_KEY"):
+                print("make live needs ANTHROPIC_API_KEY; put it in .env")
+                return 2
         _ingest_all(conn)
         for version in VERSIONS[1:]:
             run = run_version(conn, "proj-1", version)
@@ -180,6 +239,10 @@ def main(argv: list[str]) -> int:
                 f"{run['from_version']} -> {run['to_version']}: {run['changes']} changes,"
                 f" {run['claims']} claims, {len(run['tasks'])} tasks"
             )
+            # Between the two runs an expert resolves the new-obligation item,
+            # so v3's mapping call has OBL-12 to link CH-17 to.
+            if version == "v2":
+                create_obl_12(conn, "proj-1", run["tasks"])
         return 0
 
     print(f"unknown command {command!r}; expected ingest, run or live")
