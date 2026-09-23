@@ -1,6 +1,6 @@
 # Strata TDD: Technical Design
 
-Version 1.1, as built. Author: Mukesh Jain.
+Version 1.2. Author: Mukesh Jain.
 
 This document specifies the technical design of the Strata prototype. For each
 component it states what is built, which alternatives were considered, and why they
@@ -647,12 +647,71 @@ misses correctly.
 - `GET /projects/{id}/queue` shows the expert queue.
 - `GET /projects/{id}/audit` shows the event list with a rollback control.
 - `GET /projects/{id}/state?upto=N` shows the state as of event N.
+- `GET /projects/{id}/about` shows the "About this workspace" page (PRD R4.8).
 
-There are three page templates over one shared layout, and no JavaScript beyond
+There are four page templates over one shared layout, and no JavaScript beyond
 form submission. The
 verification badge, the confidence, and the path are shown on every item, so the
 decisions that matter most in the system are visible in the product as well as in the
 code.
+
+### 6.1 Layout
+
+The shared layout has a dark header bar reading "Strata" with a subtitle built from
+the loaded data: "Regulatory change to action · {company name} · Docket {docket}".
+Navigation is a fixed left sidebar, about 220 pixels wide, with three groups: the
+page links (Review center, Expert queue, Audit, About this workspace); a Versions
+list showing each ingested version with its status (baseline, processed with its
+change count, or not yet loaded with the Load button); and open counts (owner tasks
+open, expert items open). The sidebar is rendered from the same `State` the page
+uses, so it is correct on every page.
+
+### 6.2 Orientation banner
+
+`app.orientation(state, versions) -> list[Paragraph]` computes the banner shown under
+the page title on the review center. It returns one paragraph per processed version
+pair, newest first, each built from state:
+
+- Which version was compared against which, with its status and dates from the
+  `versions` table.
+- Counts: paragraphs changed, material changes, owner tasks created, expert items
+  created, and whether any citation was rejected.
+- The majority `version_status` for the to-version, stated as "The rule is now
+  final" when it is final.
+- A next-step sentence chosen by rule: while an unresolved `new_obligation` item
+  exists, "Start with the expert queue: a new obligation must be created before the
+  next version is loaded"; when the expert queue is clear and a version remains,
+  "The expert queue is clear. Version N is ready to load"; when every version is
+  loaded, "Every version has been loaded".
+
+On a first visit, the banner ends with a one-line link to the About page. No text in
+the banner is hand-written per version; a new version file would produce a correct
+banner without a template change.
+
+### 6.3 Review center ordering
+
+Within each version pair, changes with at least one material claim are listed first,
+in paragraph order. Non-material changes follow inside a single `<details>` element
+whose summary line reads "{n} changes judged not material · {all citations verified |
+k citations not verified}". The per-change line under a change with no tasks states
+the actual reason: "not material" or "no downstream nodes".
+
+### 6.4 About page
+
+`about.html` is static prose over a small dict of live values (docket, title,
+version dates and statuses, node and edge counts by type, cache entry count). It
+covers: what Strata does in three sentences; the proceeding and what each version
+changes, including the deliberate traps; the company graph; what `make run` did;
+how the two model calls are cached and the prefilled-obligation limitation; and a
+suggested path through the product. It is the first page a reviewer with no context
+should read, and the banner links to it.
+
+Tests (`tests/test_app.py`): the banner after bootstrap names version 2, gives the
+correct counts, and contains the expert-queue next step; after creating OBL-12 the
+next step changes to "ready to load"; after loading v3 the banner has two paragraphs
+and states the rule is final; material changes render before the `<details>` block;
+the About page returns 200 and shows the live counts; the sidebar shows v3 as not
+yet loaded before and as processed after.
 
 ## 7. Data isolation and security
 

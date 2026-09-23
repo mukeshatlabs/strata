@@ -196,3 +196,25 @@ PRD: R4.5.
   setup, commands, and known limitations.
 - Update PRD.md and TDD.md for anything that changed during the build; bump versions.
 - Commit: `docs: walkthrough, notes, readme`.
+
+## Task 17: Orientation and layout
+
+PRD: R4.6, R4.7, R4.8. TDD: 6.1 to 6.4.
+
+- Shared layout: "Strata" header with data-driven subtitle; fixed left sidebar with
+  page links, the Versions list with per-version status and the Load button, and open
+  counts. Rendered from State on every page.
+- `app.orientation(state, versions)` and the banner on the review center, one
+  paragraph per processed version pair, newest first, with the rule-chosen next step
+  and the first-visit link to About.
+- Review center ordering: material changes first, non-material collapsed in a
+  `<details>` block with the count and citation summary; the no-tasks line states
+  the actual reason.
+- `about.html` and `GET /projects/{id}/about`, static prose over live values.
+- Test first, per TDD 6.4's list. Existing tests must still pass; the review page
+  test that asserts a verified badge and a path string should still find them in the
+  material section.
+- No pipeline changes. No new dependencies. No JavaScript.
+- Commit: `app: sidebar layout, orientation banner, about page`.
+- Update WALKTHROUGH.md's app section and the README's suggested path if either
+  describes the old layout.

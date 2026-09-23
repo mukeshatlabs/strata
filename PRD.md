@@ -1,6 +1,6 @@
 # Strata PRD: Regulatory Change-to-Action Workspace
 
-Version 1.1, as built. Author: Mukesh Jain.
+Version 1.2. Author: Mukesh Jain.
 
 This document specifies the requirements for the Strata prototype. Each requirement in
 Section 5 has acceptance criteria. Each criterion is implemented as a test or as a row
@@ -217,6 +217,18 @@ M (manual check in the prototype).
 - R4.5 The review center shows, for each item, the claim, its verification status, its
   confidence, the impacted nodes with paths, and the recommended action. Dana can
   approve, edit, or escalate each item. M
+- R4.6 A person opening the workspace for the first time can tell, without leaving
+  the page, what proceeding and company are loaded, which versions have been
+  processed, what the last run found (changes, material changes, tasks waiting,
+  items needing an expert), and what to do next. This orientation is computed from
+  the project state and changes as the state changes. M
+- R4.7 Within a version pair, material changes are listed before non-material ones,
+  and non-material changes are collapsed under a single line that states their count
+  and whether all their citations verified. M
+- R4.8 An "About this workspace" page describes the synthetic data (the proceeding,
+  its versions and their deliberate traps, the company graph), what happened when the
+  app started, how the model calls are cached, and a suggested path through the
+  product. Counts and dates on that page come from the database. M
 
 ### 5.5 Out of scope for the prototype
 
