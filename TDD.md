@@ -184,8 +184,14 @@ Change(
 )
 ```
 
-Paragraphs are aligned by number first. When numbering shifts, for example because a
-deleted paragraph renumbers everything after it, they are aligned by text similarity.
+Paragraphs are aligned by running `difflib` over the sequence of paragraph texts, so a
+paragraph that shifted position because another was inserted or deleted comes back as
+unchanged and emits nothing. Within a replace block of equal length, paragraphs pair by
+position; an unequal block, where one side must drop out, is paired by text similarity
+at a 0.6 threshold. `change_id` marks the kind, because a removal and a modification in
+the same block can otherwise collide on one paragraph number: `c:v2->v3:p15` for a
+modification (the from-paragraph), `c:v1->v2:+p17` for an addition (the to-paragraph),
+`c:v2->v3:-p14` for a removal.
 Within a modified paragraph, `difflib.SequenceMatcher` at word level produces the
 changed spans.
 

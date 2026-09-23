@@ -47,9 +47,15 @@ PRD: R1.1, R1.2, R1.3.
 PRD: R2.1.
 
 - `strata/diff.py`: `diff_versions(conn, from_id, to_id) -> list[Change]`.
-- Align paragraphs by number, then by similarity for unmatched ones (threshold 0.8
-  ratio). Word-level SequenceMatcher for spans within modified paragraphs. Kinds:
-  added, removed, modified. Unchanged paragraphs emit nothing.
+- Align by running difflib over the sequence of paragraph texts, so a paragraph that
+  only moved emits nothing. Inside an equal-length replace block, pair by position with
+  no similarity floor (CH-17 pairs at 0.79 and CH-19 at 0.22 and both must be modified).
+  Only an unequal block, where one side must drop out, is decided by similarity
+  (threshold 0.6; the CH-16 pairing measures 0.802 and the rejected competitor 0.501,
+  so 0.6 sits in the gap where the original 0.8 left two thousandths of margin).
+  Every SequenceMatcher passes autojunk=False; the default drops the CH-16 pairing to
+  0.35. Word-level SequenceMatcher for spans within modified paragraphs. Kinds: added,
+  removed, modified. Unchanged paragraphs emit nothing.
 - Test first: `tests/test_diff.py` from gold `changes`: v1->v2 emits changes for
   CH-1..CH-8, CH-10, CH-11 and nothing for CH-9; v2->v3 emits CH-12, CH-13, CH-15,
   CH-16, CH-17, CH-19 and nothing for CH-14, CH-18; CH-7 spans cover "thirty (30)"
